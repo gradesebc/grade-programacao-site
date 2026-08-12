@@ -5,7 +5,7 @@
   const LIMITS = Object.freeze({
     workbookBytes:8*1024*1024,workbookRows:20000,workbookSheets:20,episodesPerProgram:5000,
     globalCatalog:20000,channelCatalog:10000,rules:10000,occurrences:50000,
-    exceptions:50000,skipRanges:5000,colorGroups:500,users:1000,jsonNodes:300000,jsonDepth:14,stringLength:50000
+    exceptions:50000,skipRanges:5000,colorGroups:500,users:1000,artworkBytes:8*1024*1024,jsonNodes:300000,jsonDepth:14,stringLength:50000
   });
   const CHANNELS = {
     tv_brasil:{name:'TV Brasil',slug:'tv_brasil',positive:'assets/logos/tv-brasil-positiva.svg',negative:'assets/logos/tv-brasil-negativa.svg'},
@@ -37,6 +37,11 @@
   const minutes = time => { const m=String(time||'00:00').match(/(\d{1,2}):(\d{2})/); return m ? +m[1]*60 + +m[2] : 0; };
   const timeFromMinutes = total => String(Math.floor(total/60)%24).padStart(2,'0')+':'+String(total%60).padStart(2,'0');
   const formatDate = (value,options={}) => parseLocalDate(value).toLocaleDateString('pt-BR',options);
+  function printSegments(items,date,fromSlot=0,toSlot=96){
+    const first=Math.max(0,Math.min(95,Math.floor(+fromSlot||0))),last=Math.max(first+1,Math.min(96,Math.ceil(+toSlot||96))),fromMinute=first*15,toMinute=last*15,starts=new Map();
+    (items||[]).filter(item=>item.date===date).map(item=>{const originalStart=minutes(item.start),duration=Math.max(1,+item.duration||30),originalEnd=originalStart+duration;if(originalEnd<=fromMinute||originalStart>=toMinute)return null;const clippedStart=Math.max(fromMinute,originalStart),clippedEnd=Math.min(toMinute,originalEnd),slot=Math.max(first,Math.floor(clippedStart/15)),endSlot=Math.min(last,Math.ceil(clippedEnd/15));return {item,slot,span:Math.max(1,endSlot-slot),continuesBefore:originalStart<fromMinute,continuesAfter:originalEnd>toMinute,originalStart,originalEnd};}).filter(Boolean).sort((a,b)=>a.slot-b.slot||a.originalStart-b.originalStart||b.span-a.span).forEach(segment=>{if(!starts.has(segment.slot))starts.set(segment.slot,segment);});
+    return starts;
+  }
   const DEFAULT_COLOR_GROUPS = [
     {id:'color_licensed',name:'Licenciamento',match:'licensed',background:'#FFFFFF',text:'#12203A',accent:'#2E6AC2'},
     {id:'color_rncp',name:'RNCP',match:'rncp',background:'#3B4658',text:'#FFFFFF',accent:'#0B1A3C'},
@@ -183,6 +188,11 @@
     source.forEach(entry=>{const text=String(entry||'').trim().slice(0,80),key=normalize(text);if(text&&key&&!unique.has(key))unique.set(key,text);});
     return [...unique.values()].slice(0,30);
   }
+  function normalizeArtwork(value){
+    if(!value||typeof value!=='object'||Array.isArray(value))return null;
+    const fileName=String(value.fileName||'').trim();if(!/^[a-z0-9][a-z0-9._-]{0,180}\.webp$/i.test(fileName))return null;
+    return {fileName,mimeType:'image/webp',size:Math.max(0,Math.min(1024*1024,+value.size||0)),opacity:Math.max(.06,Math.min(.24,+value.opacity||.14)),updatedAt:String(value.updatedAt||'').slice(0,40)};
+  }
   function normalizeProgramOrigin(value){
     const text=normalize(value);if(!text)return'licensed';if(text.includes('producao propria')||text==='own')return'own';if(text.includes('independente')||text.includes('rncp')||text==='independent')return'independent';if(text.includes('jornal')||text==='news')return'news';if(text.includes('institucional')||text.includes('eleitoral')||text==='institutional')return'institutional';return'licensed';
   }
@@ -206,15 +216,16 @@
     const limit=/ILIMIT|SEM RESTRI/i.test(limitRaw)?null:(parseInt(limitRaw.replace(/\D/g,''),10)||null);
     const contract=String(get('CONTRATO','Nº CONTRATO','NUMERO DO CONTRATO')||'').trim();
     const colorGroupName=String(get('GRUPO_COR','GRUPO DE COR','COR DO PROGRAMA')||'').trim(),colorGroupId=(state.colorGroups||[]).find(group=>normalize(group.name)===normalize(colorGroupName))?.id||'';
+    const artworkFile=String(get('IMAGEM','IMAGEM DE FUNDO','ARTE')||'').trim(),artwork=normalizeArtwork({fileName:artworkFile,size:0,opacity:.14,updatedAt:''});
     const originRaw=get('ORIGEM','TIPO DE PRODUÇÃO','TIPO DE PRODUCAO','PROCEDÊNCIA','PROCEDENCIA'),origin=normalizeProgramOrigin(originRaw);
     const categoryRaw=get('CATEGORIA','GÊNERO','GENERO','CLASSIFICAÇÃO DE CONTEÚDO','CLASSIFICACAO DE CONTEUDO'),category=String(categoryRaw||'').trim().slice(0,200);
     const subgroupsRaw=get('SUBGRUPOS','SUBGRUPO','ETIQUETAS','TAGS'),subgroups=normalizeSubgroups(subgroupsRaw);
     return {
       id:externalId||programId(title,season,contract),title,scope:'global',type:'unspecified',origin,category,subgroups,
-      colorGroupId,defaultDuration:duration,continuous:false,episodeCounter:1,
+      colorGroupId,artwork,defaultDuration:duration,continuous:false,episodeCounter:1,
       seasons:season?[{id:uid('season'),number:season,title:'Temporada '+season,order:1,episodes:count?Array.from({length:count},(_,i)=>({id:uid('episode'),number:i+1,title:'',duration,status:'available'})):[]}]:[],
       rights:expiry||limitRaw||contract?[{id:uid('right'),contract,startsAt:'',endsAt:expiry,exhibitionLimit:limit,rerunsCount:true,channels:Object.keys(CHANNELS)}]:[],
-      raw:clone(row),importFields:{origin:!!String(originRaw||'').trim(),category:!!String(categoryRaw||'').trim(),subgroups:!!String(subgroupsRaw||'').trim(),colorGroup:!!colorGroupName},updatedAt:new Date().toISOString()
+      raw:clone(row),importFields:{origin:!!String(originRaw||'').trim(),category:!!String(categoryRaw||'').trim(),subgroups:!!String(subgroupsRaw||'').trim(),colorGroup:!!colorGroupName,artwork:!!artwork},updatedAt:new Date().toISOString()
     };
   }
   function normalizeDate(value){
@@ -269,7 +280,7 @@
   function saveProgram(program,scope='global'){
     if(scope==='global')requireAdmin();else requireChannelAccess();
     assertSafeTree(program,'Programa');const title=String(program?.title||'').trim().slice(0,300);if(!title)throw new Error('Informe o nome do programa.');const seasons=requireArray(program.seasons||[],'Temporadas',500),episodeTotal=seasons.reduce((sum,season)=>sum+requireArray(season?.episodes||[],'Episodios',LIMITS.episodesPerProgram).length,0);if(episodeTotal>LIMITS.episodesPerProgram)throw new Error('O programa excede o limite de '+LIMITS.episodesPerProgram+' episodios.');
-    const list=scope==='channel'?currentChannel().catalog:state.globalCatalog,limit=scope==='channel'?LIMITS.channelCatalog:LIMITS.globalCatalog;const validTypes=['live','recorded','mixed','unspecified'],validOrigins=['own','independent','licensed','news','institutional'];const item={...clone(program),title,id:program.id||programId(title,program.seasons?.[0]?.number||''),scope,type:validTypes.includes(program.type)?program.type:'unspecified',origin:validOrigins.includes(program.origin)?program.origin:'licensed',category:String(program.category||'').trim().slice(0,200),subgroups:normalizeSubgroups(program.subgroups),colorGroupId:String(program.colorGroupId||'').trim(),defaultDuration:Math.max(1,Math.min(1440,+program.defaultDuration||30)),updatedAt:new Date().toISOString()};const index=list.findIndex(p=>p.id===item.id);if(index<0&&list.length>=limit)throw new Error('O catalogo atingiu o limite de '+limit+' programas.');if(index>=0)list[index]=item;else list.push(item);audit(index>=0?'Programa atualizado':'Programa cadastrado',item.title,scope==='global'?'global':'channel');return clone(item);
+    const list=scope==='channel'?currentChannel().catalog:state.globalCatalog,limit=scope==='channel'?LIMITS.channelCatalog:LIMITS.globalCatalog;const validTypes=['live','recorded','mixed','unspecified'],validOrigins=['own','independent','licensed','news','institutional'];const item={...clone(program),title,id:program.id||programId(title,program.seasons?.[0]?.number||''),scope,type:validTypes.includes(program.type)?program.type:'unspecified',origin:validOrigins.includes(program.origin)?program.origin:'licensed',category:String(program.category||'').trim().slice(0,200),subgroups:normalizeSubgroups(program.subgroups),colorGroupId:String(program.colorGroupId||'').trim(),artwork:normalizeArtwork(program.artwork),defaultDuration:Math.max(1,Math.min(1440,+program.defaultDuration||30)),updatedAt:new Date().toISOString()};const index=list.findIndex(p=>p.id===item.id);if(index<0&&list.length>=limit)throw new Error('O catalogo atingiu o limite de '+limit+' programas.');if(index>=0)list[index]=item;else list.push(item);audit(index>=0?'Programa atualizado':'Programa cadastrado',item.title,scope==='global'?'global':'channel');return clone(item);
   }
   function bulkUpdatePrograms(refs,changes={},options={}){
     requireArray(refs,'Programas selecionados',LIMITS.globalCatalog+LIMITS.channelCatalog);if(!refs.length)throw new Error('Selecione pelo menos um programa.');assertSafeTree(changes,'Alteracoes em lote');
@@ -402,7 +413,7 @@
   function applyImport(programs,{target='global',mode='merge',fileName='',sheet=''}={}){
     if(target==='global')requireAdmin();else requireChannelAccess();
     const list=target==='global'?state.globalCatalog:currentChannel().catalog;const before=clone(list);let next;
-    if(mode==='replace')next=programs.map(p=>({...p,scope:target==='global'?'global':'channel'}));else{const map=new Map(list.map(p=>[p.id,p]));programs.forEach(p=>{const old=map.get(p.id),merged={...(old||{}),...p,scope:target==='global'?'global':'channel'};if(old&&!p.importFields?.origin)merged.origin=old.origin;if(old&&!p.importFields?.category)merged.category=old.category;if(old&&!p.importFields?.subgroups)merged.subgroups=clone(old.subgroups||[]);if(old&&!p.importFields?.colorGroup)merged.colorGroupId=old.colorGroupId||'';map.set(p.id,merged);});next=[...map.values()];}
+    if(mode==='replace')next=programs.map(p=>({...p,scope:target==='global'?'global':'channel'}));else{const map=new Map(list.map(p=>[p.id,p]));programs.forEach(p=>{const old=map.get(p.id),merged={...(old||{}),...p,scope:target==='global'?'global':'channel'};if(old&&!p.importFields?.origin)merged.origin=old.origin;if(old&&!p.importFields?.category)merged.category=old.category;if(old&&!p.importFields?.subgroups)merged.subgroups=clone(old.subgroups||[]);if(old&&!p.importFields?.colorGroup)merged.colorGroupId=old.colorGroupId||'';if(old&&!p.importFields?.artwork)merged.artwork=clone(old.artwork||null);map.set(p.id,merged);});next=[...map.values()];}
     if(target==='global')state.globalCatalog=next;else currentChannel().catalog=next;
     state.imports.unshift({id:uid('import'),at:new Date().toISOString(),user:session.user,channel:session.channel,fileName,sheet,target,mode,count:programs.length,before});state.imports=state.imports.slice(0,20);
     audit('Planilha importada',programs.length+' registros de '+(fileName||sheet),target==='global'?'global':'channel');return next.length;
@@ -463,7 +474,7 @@
   }
   function exportRows(){
     const programs=getCatalog(),programRows=[],seasonRows=[],episodeRows=[],rightRows=[];
-    const colorNames=new Map((state.colorGroups||[]).map(group=>[group.id,group.name]));programs.forEach(p=>{programRows.push({ID:p.id,PROGRAMA:p.title,TIPO:p.type,ORIGEM:p.origin,CATEGORIA:p.category,SUBGRUPOS:normalizeSubgroups(p.subgroups).join('; '),GRUPO_COR:colorNames.get(p.colorGroupId)||'',DURACAO:p.defaultDuration,CONTINUO:p.continuous?'Sim':'Não',ESCOPO:p.scope});(p.seasons||[]).forEach(s=>{seasonRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,TEMPORADA:s.number,TITULO:s.title,ORDEM:s.order});(s.episodes||[]).forEach(e=>episodeRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,EPISODIO_ID:e.id,NUMERO:e.number,TITULO:e.title,DURACAO:e.duration||p.defaultDuration,SITUACAO:e.status||'available',SINOPSE:e.synopsis||''}));});(p.rights||[]).forEach(r=>rightRows.push({PROGRAMA_ID:p.id,DIREITO_ID:r.id,CONTRATO:r.contract,INICIO:r.startsAt,FIM:r.endsAt,LIMITE:r.exhibitionLimit??'ILIMITADAS',REPRISE_CONTA:r.rerunsCount===false?'Não':'Sim',CANAIS:(r.channels||[]).join(', ')}));});
+    const colorNames=new Map((state.colorGroups||[]).map(group=>[group.id,group.name]));programs.forEach(p=>{programRows.push({ID:p.id,PROGRAMA:p.title,TIPO:p.type,ORIGEM:p.origin,CATEGORIA:p.category,SUBGRUPOS:normalizeSubgroups(p.subgroups).join('; '),GRUPO_COR:colorNames.get(p.colorGroupId)||'',IMAGEM:p.artwork?.fileName||'',DURACAO:p.defaultDuration,CONTINUO:p.continuous?'Sim':'Não',ESCOPO:p.scope});(p.seasons||[]).forEach(s=>{seasonRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,TEMPORADA:s.number,TITULO:s.title,ORDEM:s.order});(s.episodes||[]).forEach(e=>episodeRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,EPISODIO_ID:e.id,NUMERO:e.number,TITULO:e.title,DURACAO:e.duration||p.defaultDuration,SITUACAO:e.status||'available',SINOPSE:e.synopsis||''}));});(p.rights||[]).forEach(r=>rightRows.push({PROGRAMA_ID:p.id,DIREITO_ID:r.id,CONTRATO:r.contract,INICIO:r.startsAt,FIM:r.endsAt,LIMITE:r.exhibitionLimit??'ILIMITADAS',REPRISE_CONTA:r.rerunsCount===false?'Não':'Sim',CANAIS:(r.channels||[]).join(', ')}));});
     const exhibitions=[];allowedChannelIds().forEach(channel=>getOccurrences(channel,isoDate(addDays(new Date(),-365)),isoDate(addDays(new Date(),730))).forEach(o=>exhibitions.push({CANAL:CHANNELS[channel].name,DATA:o.date,HORA:o.start,DURACAO:o.duration,PROGRAMA_ID:o.programId,PROGRAMA:o.title,TEMPORADA:o.season,EPISODIO:o.episodeNumber,TITULO_EPISODIO:o.episodeTitle,TIPO:o.type,REPRISE:o.isRerun?'Sim':'Não'})));
     return {programs:programRows,seasons:seasonRows,episodes:episodeRows,rights:rightRows,exhibitions};
   }
@@ -481,6 +492,6 @@
     const target=state.channels[channel];Object.entries(snapshot.grade||{}).forEach(([week,items])=>(items||[]).forEach(item=>target.occurrences.push({id:'graph_v4_'+String(item.id||uid('old')),channel,date:isoDate(addDays(week,DAY_INDEX[item.dia]??0)),start:item.hora||'00:00',duration:+item.dur||30,programId:'',title:item.obra||'Programa',season:item.temp||'',episodeNumber:item.ep||'',episodeTitle:item.subtit||'',type:item.isRepr?'rerun':(normalize(item.cat).includes('ao vivo')?'live':'recorded'),origin:legacyOrigin(item.cat),category:item.cat||'',isRerun:!!item.isRepr,source:'migration'})));
     audit('Versão online antiga migrada','Dados v4 convertidos para v6.','global');return true;
   }
-  const api={VERSION,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,saveColorGroup,colorGroupUsage,removeColorGroup,getOccurrences,getWeek,conflicts,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,timeFromMinutes,formatDate,normalizeDate,programId,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
+  const api={VERSION,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,saveColorGroup,colorGroupUsage,removeColorGroup,getOccurrences,getWeek,conflicts,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,timeFromMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
   window.EBCGrade=api;
 })();
