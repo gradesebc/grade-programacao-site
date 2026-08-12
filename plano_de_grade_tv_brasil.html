@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
+  <title>Sistema de Grade - EBC</title>
+  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260812-sec3">
+  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260812-sec3">
+</head>
+<body>
+  <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
+  <div id="login-overlay" class="overlay" aria-labelledby="login-title">
+    <section class="login-card" role="dialog" aria-modal="true">
+      <img src="assets/logos/ebc-positiva.svg" alt="EBC" class="login-logo">
+      <p class="eyebrow">Empresa Brasil de Comunicação</p>
+      <h1 id="login-title">Sistema de Grade</h1>
+      <p class="muted">Entre com sua conta corporativa para acessar as grades compartilhadas.</p>
+      <button id="login-button" class="button button-primary button-large" type="button"><span data-icon="microsoft"></span> Entrar com a Microsoft</button>
+      <p id="login-status" class="helper" role="status">Autenticação segura pelo Microsoft Entra.</p>
+    </section>
+  </div>
+  <div id="channel-overlay" class="overlay hidden" aria-labelledby="channel-title">
+    <section class="channel-dialog" role="dialog" aria-modal="true">
+      <header class="dialog-heading"><div><p class="eyebrow">Bem-vindo</p><h2 id="channel-title">Escolha o canal</h2><p id="channel-greeting" class="muted">Selecione a grade que deseja editar.</p></div><img src="assets/logos/ebc-positiva.svg" alt="EBC" class="dialog-logo"></header>
+      <div id="channel-grid" class="channel-grid"></div>
+    </section>
+  </div>
+  <div id="app-shell" class="app-shell hidden" aria-hidden="true" inert>
+    <aside class="sidebar no-print" aria-label="Navegação principal">
+      <div class="brand-block">
+        <img id="sidebar-logo" src="assets/logos/tv-brasil-negativa.svg" alt="" class="channel-logo">
+        <div class="brand-meta"><strong id="sidebar-channel">Canal</strong><span id="sidebar-user">Usuário</span></div>
+        <button id="sidebar-collapse" class="sidebar-collapse-button" type="button" aria-label="Recolher menu lateral" aria-expanded="true" data-tooltip="Recolher menu lateral"><span data-icon="panel-left"></span></button>
+      </div>
+      <nav id="main-nav" class="main-nav">
+        <button data-page="grade" class="nav-button active" type="button"><span data-icon="calendar"></span><span class="nav-label">Grade</span></button>
+        <button data-page="catalog" class="nav-button" type="button"><span data-icon="library"></span><span class="nav-label">Programas e episódios</span></button>
+        <button data-page="import" class="nav-button" type="button"><span data-icon="transfer"></span><span class="nav-label">Importar e exportar</span></button>
+        <button data-page="alerts" class="nav-button" type="button"><span data-icon="alert"></span><span class="nav-label">Alertas e vigências</span><b id="alert-badge" class="badge">0</b></button>
+        <button data-page="history" class="nav-button" type="button"><span data-icon="history"></span><span class="nav-label">Histórico</span></button>
+        <button data-page="admin" class="nav-button" type="button"><span data-icon="settings"></span><span class="nav-label">Administração</span></button>
+      </nav>
+      <div class="sync-card">
+        <div class="sync-heading"><span id="sync-dot" class="status-dot"></span><strong id="sync-title" class="sync-label">Somente neste navegador</strong></div>
+        <p id="sync-detail">Aguardando conexão com o OneDrive.</p>
+        <button id="sync-now" class="text-button" type="button"><span data-icon="cloud"></span><span class="sidebar-action-label">Sincronizar agora</span></button>
+      </div>
+      <div class="sidebar-actions">
+        <button id="switch-channel" class="button button-quiet" type="button"><span data-icon="switch"></span><span class="sidebar-action-label">Trocar canal</span></button>
+        <button id="logout-button" class="button button-quiet" type="button"><span data-icon="logout"></span><span class="sidebar-action-label">Sair</span></button>
+      </div>
+    </aside>
+    <main id="conteudo" class="main-content" tabindex="-1">
+      <header class="topbar no-print">
+        <button id="menu-toggle" class="icon-button mobile-only" type="button" aria-label="Abrir menu"><span data-icon="menu"></span></button>
+        <div class="topbar-title"><img id="header-logo" src="assets/logos/tv-brasil-positiva.svg" alt="" class="header-channel-logo"><div><p class="eyebrow" id="page-kicker">Programação</p><h1 id="page-title">Grade semanal</h1></div></div>
+        <div class="topbar-actions">
+          <button id="theme-toggle" class="icon-button" type="button" data-tooltip="Alternar tema claro ou escuro" aria-label="Alternar tema claro ou escuro"><span data-icon="moon"></span></button>
+          <button id="font-toggle" class="icon-button" type="button" data-tooltip="Ajustar tamanho do texto" aria-label="Ajustar tamanho do texto"><span data-icon="text"></span></button>
+          <button id="density-toggle" class="icon-button" type="button" data-tooltip="Alterar densidade" aria-label="Alterar densidade"><span data-icon="density"></span></button>
+          <button id="open-print" class="button button-secondary" type="button"><span data-icon="print"></span> Gerar PDF</button>
+        </div>
+      </header>
+      <section id="page-grade" class="page active" aria-labelledby="page-title">
+        <div class="grade-toolbar no-print">
+          <div class="week-navigation">
+            <button id="previous-week" class="icon-button" type="button" aria-label="Semana anterior"><span data-icon="left"></span></button>
+            <button id="current-week" class="button button-secondary button-compact" type="button">Atual</button>
+            <button id="next-week" class="icon-button" type="button" aria-label="Próxima semana"><span data-icon="right"></span></button>
+            <span id="week-number" class="week-number-badge">Semana</span>
+            <label><span class="sr-only">Escolher data</span><input id="week-picker" type="date"></label>
+          </div>
+          <div class="grade-zoom" aria-label="Zoom vertical da grade"><button id="zoom-out" class="icon-button" type="button" aria-label="Reduzir altura da grade"><span data-icon="minus"></span></button><label><span id="zoom-label">15 min · 100%</span><input id="grade-zoom" type="range" min="75" max="175" step="25" value="100"></label><button id="zoom-in" class="icon-button" type="button" aria-label="Ampliar altura da grade"><span data-icon="plus"></span></button></div>
+          <button id="new-schedule" class="button button-primary" type="button"><span data-icon="plus"></span> Programar conteúdo</button>
+        </div>
+        <div class="grade-heading-row"><div><h2 id="week-label">Semana vigente</h2><p id="week-subtitle" class="muted"></p></div><div id="grade-summary" class="summary-pills"></div></div>
+        <div class="filter-panel no-print">
+          <label class="search-field"><span data-icon="search"></span><input id="grade-search" type="search" placeholder="Buscar programa, episódio ou categoria"></label>
+          <div id="grade-filters" class="filter-chips" aria-label="Filtros da grade"></div>
+          <label class="toggle"><input id="hide-unmatched" type="checkbox"><span>Ocultar os demais</span></label>
+          <button id="clear-filters" class="text-button" type="button">Limpar filtros</button>
+        </div>
+        <div id="day-focus-bar" class="day-focus-bar no-print hidden"><button id="back-to-week" class="button button-secondary" type="button"><span data-icon="left"></span> Voltar à semana</button><div><p class="eyebrow">Dia em foco</p><strong id="focused-day-label">Dia</strong></div><div class="day-focus-actions"><button id="previous-day" class="icon-button" type="button" aria-label="Dia anterior"><span data-icon="left"></span></button><button id="next-day" class="icon-button" type="button" aria-label="Próximo dia"><span data-icon="right"></span></button></div></div>
+        <div id="schedule-board" class="schedule-board" aria-live="polite"></div>
+      </section>
+      <section id="page-catalog" class="page" aria-labelledby="catalog-title">
+        <div class="page-heading"><div><p class="eyebrow">Base de conteúdos</p><h2 id="catalog-title">Programas e episódios</h2><p class="muted">Catálogo global combinado com os programas exclusivos deste canal.</p></div><div class="button-row catalog-heading-actions"><button id="color-groups" class="button button-secondary" type="button"><span data-icon="palette"></span> Cores dos programas</button><button id="new-program" class="button button-primary" type="button"><span data-icon="plus"></span> Novo programa</button></div></div>
+        <div class="catalog-toolbar catalog-filters"><label class="search-field"><span data-icon="search"></span><input id="catalog-search" type="search" placeholder="Buscar programa, temporada, episódio ou contrato"></label><select id="catalog-scope" aria-label="Filtrar escopo"><option value="all">Global e canal</option><option value="global">Somente global</option><option value="channel">Somente este canal</option></select><select id="catalog-type" aria-label="Filtrar formato"><option value="all">Todos os formatos</option><option value="live">Ao vivo</option><option value="recorded">Gravado</option><option value="mixed">Misto</option><option value="unspecified">Sem definição</option></select><select id="catalog-origin" aria-label="Filtrar origem"><option value="all">Todas as origens</option><option value="own">Produção própria</option><option value="independent">Independente / RNCP</option><option value="licensed">Licenciado</option><option value="news">Jornalismo</option><option value="institutional">Institucional</option></select><select id="catalog-content" aria-label="Filtrar episódios"><option value="all">Todos os cadastros</option><option value="episodes">Com episódios</option><option value="continuous">Programa contínuo</option><option value="empty">Sem episódios</option></select><select id="catalog-rights" aria-label="Filtrar vigência"><option value="all">Todas as vigências</option><option value="active">Vigência ativa</option><option value="expiring">Vence em 60 dias</option><option value="expired">Vencida</option><option value="none">Sem direitos cadastrados</option></select><select id="catalog-sort" aria-label="Ordenar catálogo"><option value="title">Ordenar por título</option><option value="expiry">Ordenar por vigência</option><option value="updated">Atualizados recentemente</option></select><button id="clear-catalog-filters" class="button button-secondary" type="button">Limpar filtros</button></div>
+        <div id="catalog-stats" class="metric-grid"></div><div id="catalog-list" class="catalog-list"></div>
+      </section>
+      <section id="page-import" class="page" aria-labelledby="import-title">
+        <div class="page-heading"><div><p class="eyebrow">Dados seguros</p><h2 id="import-title">Importar e exportar</h2><p class="muted">Confira uma prévia antes de alterar o catálogo.</p></div></div>
+        <div class="two-column">
+          <article class="panel"><div class="panel-heading"><span class="step-number">1</span><div><h3>Importar planilha</h3><p>Excel, XLSX, XLS ou CSV</p></div></div><label class="file-drop"><span data-icon="upload"></span><strong>Escolher arquivo</strong><span id="import-file-name">Nenhum arquivo selecionado</span><input id="import-file" type="file" accept=".xlsx,.xls,.csv"></label><div class="form-grid"><label>Destino<select id="import-target"><option value="global">Catálogo global</option><option value="channel">Somente o canal atual</option></select></label><label>Comportamento<select id="import-mode"><option value="merge">Mesclar e atualizar</option><option value="replace">Substituir catálogo</option></select></label></div><button id="analyze-import" class="button button-primary" type="button">Analisar arquivo</button></article>
+          <article class="panel"><div class="panel-heading"><span class="step-number">2</span><div><h3>Prévia da importação</h3><p>Confirme apenas depois de revisar</p></div></div><div id="import-preview" class="empty-state compact"><span data-icon="preview"></span><p>A prévia aparecerá aqui.</p></div><div class="button-row"><button id="confirm-import" class="button button-primary" type="button" disabled>Confirmar importação</button><button id="undo-import" class="button button-secondary" type="button">Desfazer última</button></div></article>
+        </div>
+        <article class="panel export-panel"><div><h3>Exportações e cópias de segurança</h3><p class="muted">A cópia JSON contém somente o canal atual e nunca substitui os demais canais.</p></div><div class="export-actions"><button id="export-xlsx" class="button button-secondary" type="button"><span data-icon="sheet"></span> Catálogo permitido XLSX</button><button id="export-template" class="button button-secondary" type="button"><span data-icon="file"></span> Modelo vazio XLSX</button><button id="export-json" class="button button-secondary" type="button"><span data-icon="download"></span> Cópia do canal JSON</button><label class="button button-secondary" for="restore-json"><span data-icon="upload"></span> Restaurar este canal<input id="restore-json" type="file" accept=".json,application/json" hidden></label></div></article>
+      </section>
+      <section id="page-alerts" class="page" aria-labelledby="alerts-title">
+        <div class="page-heading"><div><p class="eyebrow">Acompanhamento</p><h2 id="alerts-title">Alertas e vigências</h2><p class="muted">Pendências atuais primeiro; registros antigos ficam recolhidos.</p></div></div>
+        <div id="alert-metrics" class="metric-grid"></div>
+        <div class="alert-toolbar"><select id="alert-type"><option value="all">Todos os tipos</option><option value="expired">Vigência vencida</option><option value="expiring">Vigência próxima</option><option value="limit">Limite de exibições</option><option value="conflict">Conflitos</option><option value="incomplete">Cadastro incompleto</option></select><select id="alert-severity"><option value="all">Todas as gravidades</option><option value="critical">Crítico</option><option value="warning">Atenção</option></select><label class="search-field"><span data-icon="search"></span><input id="alert-search" type="search" placeholder="Buscar programa"></label></div>
+        <div id="alert-list" class="alert-list"></div>
+      </section>
+      <section id="page-history" class="page" aria-labelledby="history-title">
+        <div class="page-heading"><div><p class="eyebrow">Rastreabilidade</p><h2 id="history-title">Histórico</h2><p class="muted">O estado atual é salvo em até 15 segundos; o histórico reúne as mudanças em blocos de cinco minutos.</p></div><button id="refresh-history" class="button button-secondary" type="button"><span data-icon="refresh"></span> Atualizar</button></div>
+        <div class="two-column"><article class="panel"><h3>Atividades recentes</h3><div id="audit-list" class="timeline-list"></div></article><article class="panel"><h3>Versões no OneDrive</h3><div id="version-list" class="timeline-list"></div></article></div>
+      </section>
+      <section id="page-admin" class="page" aria-labelledby="admin-title">
+        <div class="page-heading"><div><p class="eyebrow">Área controlada</p><h2 id="admin-title">Administração e limpeza</h2><p class="muted">Toda limpeza cria uma cópia de segurança antes de alterar os dados.</p></div></div>
+        <div id="permission-notice" class="notice"></div>
+        <article class="panel admin-users-panel">
+          <div class="panel-heading"><div><h3>Usuários e permissões</h3><p class="muted">Administradores acessam todos os canais; operadores recebem apenas os canais indicados.</p></div><button id="new-user-profile" class="button button-secondary" type="button"><span data-icon="plus"></span> Adicionar usuário</button></div>
+          <div id="user-profile-list" class="timeline-list"></div>
+        </article>
+        <div class="cleanup-grid">
+          <article class="danger-card warning"><span data-icon="calendar"></span><h3>Limpar esta semana</h3><p>Remove as ocorrências visíveis e cria exceções nas regras recorrentes.</p><strong id="cleanup-week-count">0 itens</strong><button data-cleanup="week" class="button button-warning" type="button">Revisar limpeza</button></article>
+          <article class="danger-card"><span data-icon="tv"></span><h3>Limpar este canal</h3><p>Remove regras, ocorrências e catálogo exclusivo deste canal.</p><strong id="cleanup-channel-count">0 itens</strong><button data-cleanup="channel" class="button button-danger" type="button">Revisar limpeza</button></article>
+          <article class="danger-card critical"><span data-icon="database"></span><h3>Limpeza global</h3><p>Remove dados operacionais de todos os canais, preservando auditoria e backups.</p><strong id="cleanup-global-count">0 itens</strong><button data-cleanup="global" class="button button-danger" type="button">Revisar limpeza</button></article>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="drawer-backdrop" class="drawer-backdrop hidden"></div>
+  <aside id="detail-drawer" class="detail-drawer" aria-hidden="true" aria-label="Detalhes">
+    <header><div><p class="eyebrow" id="drawer-kicker">Detalhes</p><h2 id="drawer-title">Item</h2></div><button id="drawer-close" class="icon-button" type="button" aria-label="Fechar"><span data-icon="close"></span></button></header>
+    <div id="drawer-content" class="drawer-content"></div>
+  </aside>
+  <div id="modal-backdrop" class="modal-backdrop hidden"></div>
+  <section id="app-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <header><div><p id="modal-kicker" class="eyebrow">Sistema de Grade</p><h2 id="modal-title">Janela</h2></div><button id="modal-close" class="icon-button" type="button" aria-label="Fechar"><span data-icon="close"></span></button></header>
+    <div id="modal-body" class="modal-body"></div><footer id="modal-footer" class="modal-footer"></footer>
+  </section>
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <div id="print-root" aria-hidden="true"></div>
+  <script src="assets/vendor/xlsx.full.min.js?v=0.20.3"></script>
+  <script src="assets/js/microsoft-graph.bundle.js?v=5.18.0"></script>
+  <script src="assets/js/grade-core-v6.js?v=20260812-sec3"></script>
+  <script src="assets/js/graph-store-v6.js?v=20260812-sec3"></script>
+  <script src="assets/js/grade-app-v6.js?v=20260812-sec3"></script>
+</body>
+</html>

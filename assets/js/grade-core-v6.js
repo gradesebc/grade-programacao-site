@@ -1,0 +1,466 @@
+(() => {
+  'use strict';
+  const VERSION = 6;
+  const BOOTSTRAP_ADMIN_EMAILS = new Set(['francisco.mauro@ebc.com.br']);
+  const LIMITS = Object.freeze({
+    workbookBytes:8*1024*1024,workbookRows:20000,workbookSheets:20,episodesPerProgram:5000,
+    globalCatalog:20000,channelCatalog:10000,rules:10000,occurrences:50000,
+    exceptions:50000,skipRanges:5000,colorGroups:500,users:1000,jsonNodes:300000,jsonDepth:14,stringLength:50000
+  });
+  const CHANNELS = {
+    tv_brasil:{name:'TV Brasil',slug:'tv_brasil',positive:'assets/logos/tv-brasil-positiva.svg',negative:'assets/logos/tv-brasil-negativa.svg'},
+    tv_brasil_internacional:{name:'TV Brasil Internacional',slug:'tv_brasil_internacional',positive:'assets/logos/tv-brasil-internacional-positiva.svg',negative:'assets/logos/tv-brasil-internacional-negativa.svg'},
+    gov:{name:'Canal Gov',slug:'canal_gov',positive:'assets/logos/gov-positiva.svg',negative:'assets/logos/gov-negativa.svg'}
+  };
+  const DAYS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  const DAY_INDEX = {Seg:0,Ter:1,Qua:2,Qui:3,Sex:4,Sáb:5,Dom:6};
+  const FILTERS = [
+    {id:'live',label:'Ao vivo'},{id:'recorded',label:'Gravado'},{id:'rerun',label:'Reprise'},
+    {id:'own',label:'Produção própria'},{id:'independent',label:'Independente'},
+    {id:'licensed',label:'Licenciado'},{id:'news',label:'Jornalismo'},{id:'institutional',label:'Institucional'}
+  ];
+  const clone = value => JSON.parse(JSON.stringify(value));
+  const uid = prefix => (prefix || 'id') + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,9);
+  const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const slug = value => normalize(value).replace(/\s+/g,'_') || 'sem_identificacao';
+  const isoDate = date => {
+    const d = date instanceof Date ? date : new Date(date);
+    return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');
+  };
+  const parseLocalDate = value => {
+    if(value instanceof Date) return new Date(value.getFullYear(),value.getMonth(),value.getDate());
+    const m=String(value||'').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    return m ? new Date(+m[1],+m[2]-1,+m[3]) : new Date(value);
+  };
+  const addDays = (value,days) => { const d=parseLocalDate(value); d.setDate(d.getDate()+days); return d; };
+  const startOfWeek = value => { const d=parseLocalDate(value||new Date()); const weekday=d.getDay(); d.setDate(d.getDate()-(weekday===0?6:weekday-1)); return d; };
+  const minutes = time => { const m=String(time||'00:00').match(/(\d{1,2}):(\d{2})/); return m ? +m[1]*60 + +m[2] : 0; };
+  const timeFromMinutes = total => String(Math.floor(total/60)%24).padStart(2,'0')+':'+String(total%60).padStart(2,'0');
+  const formatDate = (value,options={}) => parseLocalDate(value).toLocaleDateString('pt-BR',options);
+  const DEFAULT_COLOR_GROUPS = [
+    {id:'color_licensed',name:'Licenciamento',match:'licensed',background:'#FFFFFF',text:'#12203A',accent:'#2E6AC2'},
+    {id:'color_rncp',name:'RNCP',match:'rncp',background:'#3B4658',text:'#FFFFFF',accent:'#0B1A3C'},
+    {id:'color_own',name:'Produção própria',match:'own',background:'#BEEBD4',text:'#123B2B',accent:'#08794C'},
+    {id:'color_live',name:'Ao vivo',match:'live',background:'#FFE48F',text:'#392C00',accent:'#D53E16'},
+    {id:'color_independent',name:'Produção independente',match:'independent',background:'#FFD6A1',text:'#4B2800',accent:'#E86B02'},
+    {id:'color_news',name:'Jornalismo',match:'news',background:'#D9E9FF',text:'#0B1A3C',accent:'#2E6AC2'},
+    {id:'color_institutional',name:'Institucional',match:'institutional',background:'#FFD7C2',text:'#5A1C0A',accent:'#CF301A'},
+    {id:'color_rerun',name:'Reprise',match:'rerun',background:'#E0E0E0',text:'#252B35',accent:'#6F6F6E'}
+  ];
+  const defaultColorGroups = () => clone(DEFAULT_COLOR_GROUPS);
+  const emptyChannel = () => ({catalog:[],rules:[],occurrences:[],exceptions:[],skipRanges:[],updatedAt:null});
+  const emptyState = () => ({
+    schemaVersion:VERSION,globalCatalog:[],channels:Object.fromEntries(Object.keys(CHANNELS).map(id=>[id,emptyChannel()])),
+    colorGroups:defaultColorGroups(),imports:[],audit:[],users:{},preferences:{},backups:[],updatedAt:new Date().toISOString()
+  });
+  let state = emptyState();
+  let session = {user:null,email:'',role:'Operador',channel:localStorage.getItem('tv_canal_ativo')||'',dirty:new Set()};
+  let dbPromise = null;
+
+  function profileFor(email=session.email){
+    const key=String(email||'').toLowerCase()||normalize(session.user);
+    return state.users?.[key]||null;
+  }
+  function isAdmin(){return profileFor()?.role==='Administrador';}
+  function allowedChannelIds(){
+    if(isAdmin())return Object.keys(CHANNELS);
+    return (profileFor()?.channels||[]).filter(id=>CHANNELS[id]);
+  }
+  function requireSignedIn(){
+    if(!session.email)throw new Error('Entre com uma conta Microsoft autorizada.');
+  }
+  function requireAdmin(){
+    requireSignedIn();if(!isAdmin())throw new Error('Somente administradores podem executar esta operacao.');
+  }
+  function requireChannelAccess(channel=session.channel){
+    requireSignedIn();if(!channel||!CHANNELS[channel])throw new Error('Selecione um canal valido.');
+    if(!allowedChannelIds().includes(channel))throw new Error('Seu perfil nao tem acesso a este canal.');
+  }
+  function sessionSnapshot(){
+    return Object.freeze({user:session.user,email:session.email,role:isAdmin()?'Administrador':'Operador',channel:session.channel,dirty:new Set(session.dirty),dirtyCount:session.dirty.size});
+  }
+  function stateSnapshot(){
+    requireSignedIn();if(isAdmin())return clone(state);
+    const channels=Object.fromEntries(allowedChannelIds().map(id=>[id,clone(state.channels[id])]));
+    return {schemaVersion:VERSION,globalCatalog:clone(state.globalCatalog),channels,colorGroups:clone(state.colorGroups),imports:clone(state.imports.filter(item=>item.channel===session.channel)),audit:clone(state.audit.filter(item=>item.channel===session.channel)),users:profileFor()?{[session.email]:clone(profileFor())}:{},preferences:clone(state.preferences),backups:[],updatedAt:state.updatedAt};
+  }
+  function getUserProfile(email=session.email){const profile=profileFor(email);return profile?clone(profile):null;}
+  function dirtyScopes(){return [...session.dirty];}
+  function hasDirty(){return session.dirty.size>0;}
+  function consumeDirtyScopes(){const scopes=[...session.dirty];session.dirty.clear();return scopes;}
+  function restoreDirtyScopes(scopes){(scopes||[]).forEach(scope=>session.dirty.add(scope));}
+
+  function assertSafeTree(value,label='dados',depth=0,counter={count:0}){
+    if(depth>LIMITS.jsonDepth)throw new Error(label+' excede a profundidade permitida.');
+    if(++counter.count>LIMITS.jsonNodes)throw new Error(label+' excede a quantidade de itens permitida.');
+    if(typeof value==='string'&&value.length>LIMITS.stringLength)throw new Error(label+' contem um texto grande demais.');
+    if(value===null||typeof value!=='object')return true;
+    if(Array.isArray(value)){for(const item of value)assertSafeTree(item,label,depth+1,counter);return true;}
+    const proto=Object.getPrototypeOf(value),plain=proto===null||Object.prototype.toString.call(value)==='[object Object]';if(!plain)throw new Error(label+' possui uma estrutura invalida.');
+    for(const key of Object.keys(value)){
+      if(key==='__proto__'||key==='prototype'||key==='constructor')throw new Error(label+' contem uma chave nao permitida.');
+      assertSafeTree(value[key],label,depth+1,counter);
+    }
+    return true;
+  }
+  function requireArray(value,name,max){
+    if(!Array.isArray(value))throw new Error(name+' precisa ser uma lista.');
+    if(value.length>max)throw new Error(name+' excede o limite de '+max+' registros.');
+    return value;
+  }
+  function validateChannelData(input){
+    if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Os dados do canal sao invalidos.');
+    assertSafeTree(input,'Dados do canal');
+    return {
+      catalog:clone(requireArray(input.catalog||[],'Catalogo do canal',LIMITS.channelCatalog)),
+      rules:clone(requireArray(input.rules||[],'Regras',LIMITS.rules)),
+      occurrences:clone(requireArray(input.occurrences||[],'Exibicoes',LIMITS.occurrences)),
+      exceptions:clone(requireArray(input.exceptions||[],'Excecoes',LIMITS.exceptions)),
+      skipRanges:clone(requireArray(input.skipRanges||[],'Periodos limpos',LIMITS.skipRanges)),
+      updatedAt:typeof input.updatedAt==='string'?input.updatedAt:null
+    };
+  }
+  function validateGlobalData(remote){
+    if(!remote||typeof remote!=='object'||Array.isArray(remote)||+remote.schemaVersion!==VERSION)throw new Error('Arquivo global incompatível.');
+    assertSafeTree(remote,'Dados globais');
+    requireArray(remote.globalCatalog||[],'Catalogo global',LIMITS.globalCatalog);
+    requireArray(remote.colorGroups||[],'Grupos de cores',LIMITS.colorGroups);
+    requireArray(remote.imports||[],'Importacoes',100);
+    requireArray(remote.audit||[],'Auditoria',600);
+    if(!remote.users||typeof remote.users!=='object'||Array.isArray(remote.users)||Object.keys(remote.users).length>LIMITS.users)throw new Error('Lista de usuarios invalida.');
+    return true;
+  }
+
+  function openDb(){
+    if(dbPromise) return dbPromise;
+    if(typeof indexedDB==='undefined')return Promise.resolve(null);
+    dbPromise = new Promise(resolve=>{
+      const request=indexedDB.open('ebc-grade-v6',1);
+      request.onupgradeneeded=()=>{ const db=request.result; if(!db.objectStoreNames.contains('state')) db.createObjectStore('state'); };
+      let settled=false;const finish=value=>{if(settled)return;settled=true;clearTimeout(timeout);resolve(value);};
+      const timeout=setTimeout(()=>finish(null),3000);
+      request.onsuccess=()=>finish(request.result);request.onerror=()=>finish(null);request.onblocked=()=>finish(null);
+    });
+    return dbPromise;
+  }
+  async function cacheGet(key){
+    try{const db=await openDb();if(!db)return null;return await new Promise((resolve,reject)=>{const tx=db.transaction('state','readonly');const req=tx.objectStore('state').get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}catch(_){return null;}
+  }
+  async function cachePut(key,value){
+    try{const db=await openDb();if(!db)return;await new Promise((resolve,reject)=>{const tx=db.transaction('state','readwrite');tx.objectStore('state').put(clone(value),key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}catch(err){console.warn('Cache local indisponível',err);} 
+  }
+  function stateCacheKey(){
+    requireSignedIn();return 'state:'+session.email;
+  }
+  async function purgeForeignCaches(){
+    const active=stateCacheKey();
+    try{
+      const db=await openDb();if(!db)return;
+      await new Promise((resolve,reject)=>{
+        const tx=db.transaction('state','readwrite'),store=tx.objectStore('state'),request=store.openCursor();
+        request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;const key=String(cursor.key||'');if(key==='state'||(key.startsWith('state:')&&key!==active))cursor.delete();cursor.continue();};
+        request.onerror=()=>reject(request.error);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
+      });
+    }catch(err){console.warn('Nao foi possivel isolar o cache local',err);} 
+  }
+  async function clearLocalData(){
+    state=emptyState();session={user:null,email:'',role:'Operador',channel:'',dirty:new Set()};
+    ['tv_canal_ativo','tv_user','tv_user_email','tv_perfil'].forEach(key=>localStorage.removeItem(key));
+    try{const db=await openDb();if(db)await new Promise((resolve,reject)=>{const tx=db.transaction('state','readwrite');tx.objectStore('state').clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}catch(err){console.warn('Nao foi possivel limpar o cache local',err);}
+  }
+  function emit(type,detail={}){window.dispatchEvent(new CustomEvent(type,{detail}));}
+  function persist(scope='channel'){
+    state.updatedAt=new Date().toISOString(); session.dirty.add(scope==='channel'&&session.channel?'channel:'+session.channel:scope);
+    cachePut(stateCacheKey(),state); emit('ebc:data-changed',{scope,channel:session.channel});
+  }
+  function audit(action,detail='',scope='channel'){
+    state.audit.unshift({id:uid('audit'),at:new Date().toISOString(),user:session.user||'Usuário',email:session.email,channel:session.channel,action,detail});
+    state.audit=state.audit.slice(0,600); persist(scope);
+  }
+  function programId(title,season='',contract=''){return 'program_'+slug([title,season,contract].join('|'));}
+  function ensureState(input){
+    const next={...emptyState(),...(input||{})}; next.schemaVersion=VERSION;
+    next.channels=next.channels||{};
+    Object.keys(CHANNELS).forEach(id=>{next.channels[id]={...emptyChannel(),...(next.channels[id]||{})};});
+    ['globalCatalog','imports','audit','backups'].forEach(k=>{if(!Array.isArray(next[k]))next[k]=[];});
+    if(!Array.isArray(next.colorGroups))next.colorGroups=defaultColorGroups();
+    next.users=next.users||{};next.preferences=next.preferences||{};return next;
+  }
+  function normalizeLegacyProgram(row){
+    const get=(...names)=>{const entries=Object.entries(row||{}).map(([k,v])=>[normalize(k),v]);for(const name of names){const n=normalize(name);const found=entries.find(([k,v])=>(k===n||k.includes(n))&&String(v??'').trim());if(found)return found[1];}return '';};
+    const title=String(get('OBRA AUDIOVISUAL','NOME DA OBRA','PROGRAMA','OBRA','TÍTULO')||'').trim();
+    const externalId=String(get('ID','PROGRAMA_ID')||'').trim();
+    const season=String(get('TEMPORADA','TEMPORADAS')||'').replace(/^não seriada?$/i,'').trim();
+    const duration=Math.max(1,Math.min(1440,parseInt(String(get('MINUTOS POR EP','DURAÇÃO','DURACAO','MINUTOS')||'').replace(/\D/g,''),10)||30));
+    const count=Math.max(0,Math.min(LIMITS.episodesPerProgram,parseInt(String(get('Nº EPISÓDIOS','EPISÓDIOS','EPISODIOS','EPS')||'').replace(/\D/g,''),10)||0));
+    const expiry=normalizeDate(get('FIM VIGÊNCIA','FIM VIGENCIA','DATA FINAL DE VIGÊNCIA','VALIDADE'));
+    const limitRaw=String(get('Nº DE EXIBIÇÕES','N DE EXIBICOES','LIMITE DE EXIBIÇÕES')||'').trim();
+    const limit=/ILIMIT|SEM RESTRI/i.test(limitRaw)?null:(parseInt(limitRaw.replace(/\D/g,''),10)||null);
+    const contract=String(get('CONTRATO','Nº CONTRATO','NUMERO DO CONTRATO')||'').trim();
+    const colorGroupName=String(get('GRUPO_COR','GRUPO DE COR','COR DO PROGRAMA')||'').trim(),colorGroupId=(state.colorGroups||[]).find(group=>normalize(group.name)===normalize(colorGroupName))?.id||'';
+    return {
+      id:externalId||programId(title,season,contract),title,scope:'global',type:'unspecified',origin:'licensed',category:'Licenciado',
+      colorGroupId,defaultDuration:duration,continuous:false,episodeCounter:1,
+      seasons:season?[{id:uid('season'),number:season,title:'Temporada '+season,order:1,episodes:count?Array.from({length:count},(_,i)=>({id:uid('episode'),number:i+1,title:'',duration,status:'available'})):[]}]:[],
+      rights:expiry||limitRaw||contract?[{id:uid('right'),contract,startsAt:'',endsAt:expiry,exhibitionLimit:limit,rerunsCount:true,channels:Object.keys(CHANNELS)}]:[],
+      raw:clone(row),updatedAt:new Date().toISOString()
+    };
+  }
+  function normalizeDate(value){
+    if(value instanceof Date&&!isNaN(value))return isoDate(value);const text=String(value??'').trim();if(!text)return '';
+    if(/^\d{4}-\d{2}-\d{2}/.test(text))return text.slice(0,10);let m=text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+    if(/^\d{4,5}(\.\d+)?$/.test(text)){const d=new Date(Date.UTC(1899,11,30)+Math.floor(+text)*86400000);return d.toISOString().slice(0,10);}return text;
+  }
+  function migrateLegacyGrade(channel,target){
+    let saved=localStorage.getItem('ebc_grade_data_'+channel);
+    if(!saved&&channel==='tv_brasil')saved=localStorage.getItem('tv_grade_data');
+    if(!saved)return 0;let grades={};try{grades=JSON.parse(saved)||{};}catch(_){return 0;}let count=0;
+    Object.entries(grades).forEach(([week,items])=>(items||[]).forEach(item=>{
+      const date=isoDate(addDays(week,DAY_INDEX[item.dia]??0));
+      target.occurrences.push({id:'legacy_'+channel+'_'+String(item.id||uid('old')),channel,date,start:item.hora||'00:00',duration:+item.dur||30,programId:'',title:item.obra||'Programa',episodeNumber:item.ep||'',episodeTitle:item.subtit||'',season:item.temp||'',type:item.isRepr?'rerun':(normalize(item.cat).includes('ao vivo')?'live':'recorded'),origin:legacyOrigin(item.cat),category:item.cat||'',isRerun:!!item.isRepr,source:'migration'});
+      count++;
+    }));return count;
+  }
+  function legacyOrigin(category){const n=normalize(category);if(n.includes('producao propria'))return'own';if(n.includes('rncp')||n.includes('independente'))return'independent';if(n.includes('jornal'))return'news';if(n.includes('institucional')||n.includes('eleitoral'))return'institutional';return'licensed';}
+  async function init(identity){
+    if(identity)setUser(identity,{bootstrap:false});requireSignedIn();await purgeForeignCaches();
+    const cached=await cacheGet(stateCacheKey());if(cached?.schemaVersion===VERSION){state=ensureState(cached);return state;}
+    state=emptyState();let legacy=[];try{legacy=JSON.parse(localStorage.getItem('tv_catalogo_data')||'[]')||[];}catch(_){}
+    state.globalCatalog=legacy.map(normalizeLegacyProgram).filter(p=>p.title);
+    let migrated=state.globalCatalog.length;Object.keys(CHANNELS).forEach(id=>{migrated+=migrateLegacyGrade(id,state.channels[id]);});
+    if(migrated)audit('Migração concluída',migrated+' registros convertidos da versão anterior.','global');else await cachePut(stateCacheKey(),state);
+    return state;
+  }
+  function setUser(identity,{bootstrap=false}={}){
+    const previousEmail=String(localStorage.getItem('tv_user_email')||'').toLowerCase();
+    session.user=identity?.nome||identity?.name||identity?.email||'Usuário';session.email=String(identity?.email||'').trim().toLowerCase();
+    requireSignedIn();
+    if(previousEmail&&previousEmail!==session.email){
+      state=emptyState();session.channel='';session.dirty.clear();localStorage.removeItem('tv_canal_ativo');cachePut(stateCacheKey(),state);
+    }
+    const key=session.email,canBootstrap=bootstrap&&!Object.keys(state.users).length&&BOOTSTRAP_ADMIN_EMAILS.has(key);
+    if(canBootstrap){
+      state.users[key]={name:session.user,email:session.email,role:'Administrador',channels:Object.keys(CHANNELS)};
+      persist('global');
+    }
+    const profile=profileFor();session.role=profile?.role==='Administrador'?'Administrador':'Operador';
+    if(session.channel&&!allowedChannelIds().includes(session.channel)){session.channel='';localStorage.removeItem('tv_canal_ativo');}
+    localStorage.setItem('tv_user',session.user);localStorage.setItem('tv_user_email',session.email);localStorage.setItem('tv_perfil',session.role);
+    return sessionSnapshot();
+  }
+  function setChannel(channel){requireChannelAccess(channel);session.channel=channel;localStorage.setItem('tv_canal_ativo',channel);return channel;}
+  function currentChannel(){return state.channels[session.channel]||emptyChannel();}
+  function getCatalog(scope='all'){
+    requireSignedIn();if(scope!=='global')requireChannelAccess();
+    const global=state.globalCatalog.map(p=>({...p,scope:'global'}));const local=currentChannel().catalog.map(p=>({...p,scope:'channel'}));
+    if(scope==='global')return global;if(scope==='channel')return local;const map=new Map(global.map(p=>[p.id,p]));local.forEach(p=>map.set(p.id,{...(map.get(p.id)||{}),...p,scope:'channel'}));return [...map.values()];
+  }
+  function saveProgram(program,scope='global'){
+    if(scope==='global')requireAdmin();else requireChannelAccess();
+    assertSafeTree(program,'Programa');const title=String(program?.title||'').trim().slice(0,300);if(!title)throw new Error('Informe o nome do programa.');const seasons=requireArray(program.seasons||[],'Temporadas',500),episodeTotal=seasons.reduce((sum,season)=>sum+requireArray(season?.episodes||[],'Episodios',LIMITS.episodesPerProgram).length,0);if(episodeTotal>LIMITS.episodesPerProgram)throw new Error('O programa excede o limite de '+LIMITS.episodesPerProgram+' episodios.');
+    const list=scope==='channel'?currentChannel().catalog:state.globalCatalog,limit=scope==='channel'?LIMITS.channelCatalog:LIMITS.globalCatalog;const item={...clone(program),title,id:program.id||programId(title,program.seasons?.[0]?.number||''),scope,defaultDuration:Math.max(1,Math.min(1440,+program.defaultDuration||30)),updatedAt:new Date().toISOString()};const index=list.findIndex(p=>p.id===item.id);if(index<0&&list.length>=limit)throw new Error('O catalogo atingiu o limite de '+limit+' programas.');if(index>=0)list[index]=item;else list.push(item);audit(index>=0?'Programa atualizado':'Programa cadastrado',item.title,scope==='global'?'global':'channel');return clone(item);
+  }
+  function getColorGroups(){requireSignedIn();return clone(state.colorGroups||[]);}
+  function normalizeColor(value,fallback){const text=String(value||'').trim().toUpperCase();return /^#[0-9A-F]{6}$/.test(text)?text:fallback;}
+  function saveColorGroup(group){
+    requireAdmin();
+    const name=String(group?.name||'').trim();if(!name)throw new Error('Informe o nome do grupo de cor.');
+    const id=group.id||uid('color'),match=['licensed','rncp','own','live','independent','news','institutional','rerun'].includes(group.match)?group.match:'';
+    if(state.colorGroups.some(item=>item.id!==id&&normalize(item.name)===normalize(name)))throw new Error('Já existe um grupo de cor com esse nome.');
+    if(match&&state.colorGroups.some(item=>item.id!==id&&item.match===match))throw new Error('Essa aplicação automática já está vinculada a outro grupo.');
+    const item={id,name,match,background:normalizeColor(group.background,'#FFFFFF'),text:normalizeColor(group.text,'#12203A'),accent:normalizeColor(group.accent,'#2E6AC2'),updatedAt:new Date().toISOString()};
+    const index=state.colorGroups.findIndex(entry=>entry.id===id);if(index>=0)state.colorGroups[index]=item;else state.colorGroups.push(item);audit(index>=0?'Grupo de cor atualizado':'Grupo de cor criado',name,'global');return clone(item);
+  }
+  function colorGroupUsage(id){let count=state.globalCatalog.filter(program=>program.colorGroupId===id).length;Object.values(state.channels).forEach(channel=>{count+=(channel.catalog||[]).filter(program=>program.colorGroupId===id).length;});return count;}
+  function removeColorGroup(id){requireAdmin();const index=state.colorGroups.findIndex(group=>group.id===id);if(index<0)return 0;const [group]=state.colorGroups.splice(index,1);let affected=0;const clear=list=>(list||[]).forEach(program=>{if(program.colorGroupId===id){program.colorGroupId='';affected++;}});clear(state.globalCatalog);Object.values(state.channels).forEach(channel=>clear(channel.catalog));audit('Grupo de cor excluído',group.name+' · '+affected+' programa(s) voltaram para a cor automática.','global');return affected;}
+  function removeProgram(id,scope){if(scope==='global')requireAdmin();else requireChannelAccess();const list=scope==='channel'?currentChannel().catalog:state.globalCatalog;const index=list.findIndex(p=>p.id===id);if(index<0)return false;const [item]=list.splice(index,1);audit('Programa removido',item.title,scope==='global'?'global':'channel');return true;}
+  function episodeSequence(program,selectedSeasons=[]){
+    const seasons=(program?.seasons||[]).filter(s=>!selectedSeasons.length||selectedSeasons.map(String).includes(String(s.id))||selectedSeasons.map(String).includes(String(s.number)));
+    return seasons.sort((a,b)=>(+a.order||+a.number||0)-(+b.order||+b.number||0)).flatMap(s=>(s.episodes||[]).sort((a,b)=>(+a.number||0)-(+b.number||0)).map(e=>({...e,season:s.number||s.title||''})));
+  }
+  function primaryDatesUntil(rule,endDate){
+    const start=parseLocalDate(rule.startsAt);const end=parseLocalDate(endDate);const dates=[];let cursor=start;let guard=0;
+    while(cursor<=end&&guard++<40000){const day=DAYS[(cursor.getDay()+6)%7];if((rule.weekdays||[]).includes(day))dates.push(isoDate(cursor));cursor=addDays(cursor,1);}return dates;
+  }
+  function skipped(channel,date){return (channel.skipRanges||[]).some(range=>date>=range.start&&date<=range.end);}
+  function ruleOccurrence(rule,date,index,program){
+    const sequence=episodeSequence(program,rule.selectedSeasons||[]);const cycles=Math.max(1,+rule.cycles||1);const limit=sequence.length?sequence.length*cycles:Infinity;
+    if(rule.endMode==='cycles'&&index>=limit)return null;if(rule.endsAt&&date>rule.endsAt)return null;
+    const episode=sequence.length?sequence[index%sequence.length]:null;const number=episode?.number||(rule.continuous!==false?(+rule.startEpisode||1)+index:'');
+    return {id:'gen_'+rule.id+'_'+date,ruleId:rule.id,channel:rule.channel,date,start:rule.start,duration:+rule.duration||program?.defaultDuration||30,programId:rule.programId,title:rule.title||program?.title||'Programa',season:episode?.season||rule.season||'',episodeId:episode?.id||'',episodeNumber:number,episodeTitle:episode?.title||'',type:rule.type||program?.type||'recorded',origin:rule.origin||program?.origin||'licensed',category:rule.category||program?.category||'',isRerun:false,source:'rule'};
+  }
+  function applyException(item,exceptions){
+    const ex=exceptions.find(e=>e.ruleId===item.ruleId&&e.date===item.date&&(!e.occurrenceKind||e.occurrenceKind===(item.isRerun?'rerun':'primary')));
+    if(!ex)return item;if(ex.action==='cancel')return null;return {...item,...clone(ex.changes||{}),id:item.id+'_exception',exceptionId:ex.id};
+  }
+  function getOccurrences(channelId,from,to){
+    requireChannelAccess(channelId);
+    const channel=state.channels[channelId]||emptyChannel();const catalogMap=new Map(getCatalog().map(p=>[p.id,p]));const result=channel.occurrences.filter(o=>o.date>=from&&o.date<=to).map(clone);
+    channel.rules.filter(r=>r.active!==false&&r.startsAt<=to&&(!r.endsAt||r.endsAt>=from)).forEach(rule=>{
+      const program=catalogMap.get(rule.programId);const dates=primaryDatesUntil(rule,to);
+      dates.forEach((date,index)=>{
+        if(date<from||skipped(channel,date))return;let primary=ruleOccurrence(rule,date,index,program);if(!primary)return;primary=applyException(primary,channel.exceptions);if(primary)result.push(primary);
+        (rule.reruns||[]).forEach((rerun,rIndex)=>{
+          const rerunDate=isoDate(addDays(date,+rerun.dayOffset||0));if(rerunDate<from||rerunDate>to||skipped(channel,rerunDate))return;
+          let copy={...primary,id:'gen_'+rule.id+'_'+date+'_rerun_'+rIndex,date:rerunDate,start:rerun.start||primary.start,type:'rerun',category:'Reprise',isRerun:true,originalDate:date,occurrenceKind:'rerun'};
+          copy=applyException(copy,channel.exceptions);if(copy)result.push(copy);
+        });
+      });
+    });
+    return result.sort((a,b)=>a.date.localeCompare(b.date)||minutes(a.start)-minutes(b.start));
+  }
+  function getWeek(channel,week){const start=isoDate(startOfWeek(week));return getOccurrences(channel,start,isoDate(addDays(start,6)));}
+  function conflicts(items){
+    const found=[];const groups={};items.forEach(item=>(groups[item.date]??=[]).push(item));
+    Object.values(groups).forEach(list=>{list.sort((a,b)=>minutes(a.start)-minutes(b.start));for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){const a=list[i],b=list[j];if(minutes(b.start)>=minutes(a.start)+(+a.duration||30))break;found.push({a,b,date:a.date});}});return found;
+  }
+  function validateRule(rule){
+    assertSafeTree(rule,'Regra');if(currentChannel().rules.length>=LIMITS.rules&&!rule.id)throw new Error('O canal atingiu o limite de regras recorrentes.');
+    if(!rule.programId&&!rule.title)throw new Error('Escolha um programa.');if(!rule.startsAt||!rule.start)throw new Error('Informe data e horário.');if(!(rule.weekdays||[]).length)throw new Error('Escolha pelo menos um dia da semana.');
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(rule.startsAt))||!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(rule.start)))throw new Error('A data ou o horario da regra e invalido.');
+    if(rule.endMode==='date'&&!rule.endsAt)throw new Error('Informe a data de término da recorrência.');
+    const testState=clone(currentChannel().rules);const candidate={...rule,id:rule.id||uid('rule'),channel:session.channel};currentChannel().rules=[...testState.filter(r=>r.id!==candidate.id),candidate];
+    const end=isoDate(addDays(candidate.startsAt,90));const collision=conflicts(getOccurrences(session.channel,candidate.startsAt,end));currentChannel().rules=testState;
+    if(collision.length)throw new Error('A regra cria conflito de horário nos próximos 90 dias. Ajuste o horário ou a duração.');return candidate;
+  }
+  function saveRule(rule){requireChannelAccess();const candidate=validateRule(rule);const list=currentChannel().rules;const index=list.findIndex(r=>r.id===candidate.id);if(index>=0)list[index]=candidate;else list.push(candidate);audit(index>=0?'Regra atualizada':'Programação recorrente criada',candidate.title||getCatalog().find(p=>p.id===candidate.programId)?.title||'Programa');return candidate;}
+  function saveOccurrence(item){
+    requireChannelAccess();
+    assertSafeTree(item,'Exibicao');if(!/^\d{4}-\d{2}-\d{2}$/.test(String(item?.date||''))||!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(item?.start||'')))throw new Error('A data ou o horario da exibicao e invalido.');
+    const occurrence={...clone(item),title:String(item.title||'Programa').trim().slice(0,300),duration:Math.max(1,Math.min(1440,+item.duration||30)),id:item.id||uid('event'),channel:session.channel,source:item.source||'manual'};const list=currentChannel().occurrences;const index=list.findIndex(o=>o.id===occurrence.id);if(index<0&&list.length>=LIMITS.occurrences)throw new Error('O canal atingiu o limite de exibicoes manuais.');
+    const others=getOccurrences(session.channel,occurrence.date,occurrence.date).filter(o=>o.id!==occurrence.id&&o.ruleId!==occurrence.ruleId);
+    if(conflicts([...others,occurrence]).length)throw new Error('Já existe um programa ocupando esse horário.');
+    if(index>=0)list[index]=occurrence;else list.push(occurrence);audit(index>=0?'Exibição atualizada':'Exibição adicionada',occurrence.title);return occurrence;
+  }
+  function changeOccurrence(item,changes,scope='one'){
+    requireChannelAccess();
+    assertSafeTree(changes,'Alteracao da exibicao');if(currentChannel().exceptions.length+(scope==='week'?7:1)>LIMITS.exceptions)throw new Error('O canal atingiu o limite de excecoes.');
+    if(item.source==='manual'||item.source==='migration')return saveOccurrence({...item,...changes});
+    if(scope==='future'){const rule=currentChannel().rules.find(r=>r.id===item.ruleId);if(rule){Object.assign(rule,changes,{startsAt:item.date});audit('Regra alterada a partir de '+formatDate(item.date),item.title);return rule;}}
+    if(scope==='week'){const week=isoDate(startOfWeek(item.date));DAYS.forEach((_,i)=>{const date=isoDate(addDays(week,i));currentChannel().exceptions.push({id:uid('exception'),ruleId:item.ruleId,date,action:'change',changes:clone(changes)});});}
+    else currentChannel().exceptions.push({id:uid('exception'),ruleId:item.ruleId,date:item.date,occurrenceKind:item.isRerun?'rerun':'primary',action:'change',changes:clone(changes)});
+    audit('Exibição excepcional alterada',item.title);return true;
+  }
+  function cancelOccurrence(item,scope='one'){
+    requireChannelAccess();
+    if(item.source!=='manual'&&item.source!=='migration'&&scope!=='future'&&currentChannel().exceptions.length>=LIMITS.exceptions)throw new Error('O canal atingiu o limite de excecoes.');
+    if(item.source==='manual'||item.source==='migration'){const list=currentChannel().occurrences;const i=list.findIndex(o=>o.id===item.id);if(i>=0)list.splice(i,1);}
+    else if(scope==='future'){const rule=currentChannel().rules.find(r=>r.id===item.ruleId);if(rule)rule.endsAt=isoDate(addDays(item.date,-1));}
+    else currentChannel().exceptions.push({id:uid('exception'),ruleId:item.ruleId,date:item.date,occurrenceKind:item.isRerun?'rerun':'primary',action:'cancel'});
+    audit('Exibição cancelada',item.title);return true;
+  }
+  function getAlerts(){
+    const today=parseLocalDate(new Date()),todayIso=isoDate(today),alerts=[],allCounts=new Map(),primaryCounts=new Map();
+    allowedChannelIds().forEach(channelId=>{const channel=state.channels[channelId],dates=[...channel.rules.map(r=>r.startsAt),...channel.occurrences.map(o=>o.date)].filter(Boolean).sort(),from=dates[0]||isoDate(addDays(today,-3650));getOccurrences(channelId,from,todayIso).forEach(item=>{allCounts.set(item.programId,(allCounts.get(item.programId)||0)+1);if(!item.isRerun)primaryCounts.set(item.programId,(primaryCounts.get(item.programId)||0)+1);});});
+    getCatalog().forEach(program=>{
+      if(!program.title||!program.defaultDuration)alerts.push({id:uid('al'),type:'incomplete',severity:'warning',programId:program.id,title:program.title||'Programa sem nome',message:'Cadastro incompleto: confira título e duração.',scope:program.scope});
+      (program.rights||[]).forEach(right=>{
+        if(right.endsAt){const days=Math.ceil((parseLocalDate(right.endsAt)-today)/86400000);if(days<0&&days>=-30)alerts.push({id:uid('al'),type:'expired',severity:'critical',programId:program.id,title:program.title,message:'Vigência encerrada há '+Math.abs(days)+' dia(s).',date:right.endsAt,scope:program.scope});else if(days< -30)alerts.push({id:uid('al'),type:'expired',severity:'history',programId:program.id,title:program.title,message:'Vigência encerrada há '+Math.abs(days)+' dia(s).',date:right.endsAt,scope:program.scope,historical:true});else if(days>=0&&days<=60)alerts.push({id:uid('al'),type:'expiring',severity:days<=15?'critical':'warning',programId:program.id,title:program.title,message:days===0?'Vigência termina hoje.':'Vigência termina em '+days+' dia(s).',date:right.endsAt,scope:program.scope});}
+        if(Number.isFinite(+right.exhibitionLimit)){const used=(right.rerunsCount===false?primaryCounts:allCounts).get(program.id)||0,left=+right.exhibitionLimit-used;if(left<=2)alerts.push({id:uid('al'),type:'limit',severity:left<=0?'critical':'warning',programId:program.id,title:program.title,message:left<0?'Limite excedido em '+Math.abs(left)+' exibição(ões).':left+' exibição(ões) disponível(is).',detail:used+' de '+right.exhibitionLimit+' utilizadas',scope:program.scope});}
+      });
+    });
+    const start=isoDate(startOfWeek(new Date())),items=getWeek(session.channel,start);
+    conflicts(items).forEach((c,i)=>alerts.push({id:'conflict_'+i,type:'conflict',severity:'critical',title:c.a.title+' × '+c.b.title,message:'Conflito em '+formatDate(c.date)+' às '+c.b.start,date:c.date,programId:c.a.programId}));
+    return alerts.sort((a,b)=>(a.severity==='critical'?-1:1)-(b.severity==='critical'?-1:1)||a.title.localeCompare(b.title,'pt-BR'));
+  }
+  function headerScore(row){const names=(row||[]).map(normalize);let score=0;if(names.some(v=>v==='obra audiovisual'))score+=8;else if(names.some(v=>/(obra|programa|titulo)/.test(v)))score+=4;if(names.some(v=>v.includes('episod')))score+=2;if(names.some(v=>v.includes('duracao')||v.includes('minutos')))score+=2;if(names.some(v=>v.includes('vigencia')))score+=3;if(names.some(v=>v.includes('exibic')))score+=2;return score;}
+  function locateTable(workbook){
+    if(!Array.isArray(workbook.SheetNames)||workbook.SheetNames.length>LIMITS.workbookSheets)throw new Error('A planilha possui abas demais.');
+    let best=null;workbook.SheetNames.forEach(name=>{const matrix=XLSX.utils.sheet_to_json(workbook.Sheets[name],{header:1,defval:'',raw:false,dateNF:'yyyy-mm-dd'});if(matrix.length>LIMITS.workbookRows)throw new Error('A planilha excede '+LIMITS.workbookRows+' linhas.');matrix.slice(0,40).forEach((row,index)=>{const score=headerScore(row);if(!best||score>best.score)best={name,matrix,index,score};});});return best?.score>=6?best:null;
+  }
+  function parseWorkbook(buffer){
+    requireSignedIn();if(!window.XLSX)throw new Error('O leitor de planilhas local não foi carregado.');if(!buffer||buffer.byteLength>LIMITS.workbookBytes)throw new Error('A planilha deve ter no máximo 8 MB.');
+    const workbook=XLSX.read(buffer,{type:'array',cellDates:true,cellFormula:false,cellHTML:false,bookVBA:false,bookFiles:false,WTF:false,sheetRows:LIMITS.workbookRows+1});const table=locateTable(workbook);if(!table)throw new Error('Não encontrei os cabeçalhos de programa, episódios ou vigência.');
+    const headers=table.matrix[table.index].map(v=>String(v??'').trim());const rawRows=table.matrix.slice(table.index+1).map(row=>{const out={};headers.forEach((h,i)=>{if(h)out[h]=row[i]??'';});return out;}).filter(row=>Object.values(row).some(v=>String(v).trim()));
+    const programs=rawRows.map(normalizeLegacyProgram).filter(p=>p.title);return {sheet:table.name,rows:rawRows.length,programs};
+  }
+  function previewImport(programs,target='global'){
+    const existing=target==='global'?state.globalCatalog:currentChannel().catalog;const map=new Map(existing.map(p=>[p.id,p]));let added=0,updated=0,duplicates=0,invalid=0;
+    programs.forEach(p=>{if(!p.title){invalid++;return;}const old=map.get(p.id);if(!old)added++;else if(JSON.stringify(old.raw||{})===JSON.stringify(p.raw||{}))duplicates++;else updated++;});
+    return {added,updated,duplicates,invalid,total:programs.length};
+  }
+  function applyImport(programs,{target='global',mode='merge',fileName='',sheet=''}={}){
+    if(target==='global')requireAdmin();else requireChannelAccess();
+    const list=target==='global'?state.globalCatalog:currentChannel().catalog;const before=clone(list);let next;
+    if(mode==='replace')next=programs.map(p=>({...p,scope:target==='global'?'global':'channel'}));else{const map=new Map(list.map(p=>[p.id,p]));programs.forEach(p=>map.set(p.id,{...(map.get(p.id)||{}),...p,scope:target==='global'?'global':'channel'}));next=[...map.values()];}
+    if(target==='global')state.globalCatalog=next;else currentChannel().catalog=next;
+    state.imports.unshift({id:uid('import'),at:new Date().toISOString(),user:session.user,channel:session.channel,fileName,sheet,target,mode,count:programs.length,before});state.imports=state.imports.slice(0,20);
+    audit('Planilha importada',programs.length+' registros de '+(fileName||sheet),target==='global'?'global':'channel');return next.length;
+  }
+  function undoImport(){
+    const batch=state.imports.find(item=>item.target==='global'||(item.target==='channel'&&item.channel===session.channel));if(!batch)throw new Error('Não há importação para desfazer.');
+    if(batch.target==='global')requireAdmin();else requireChannelAccess();
+    if(batch.target==='global')state.globalCatalog=clone(batch.before);else currentChannel().catalog=clone(batch.before);state.imports=state.imports.filter(i=>i.id!==batch.id);audit('Importação desfeita',batch.fileName||batch.id,batch.target==='global'?'global':'channel');return true;
+  }
+  function saveUserProfile(profile){
+    requireAdmin();
+    const email=String(profile.email||'').trim().toLowerCase();if(!email||!email.includes('@'))throw new Error('Informe um e-mail corporativo válido.');
+    const role=profile.role==='Administrador'?'Administrador':'Operador',channels=(profile.channels||[]).filter(id=>CHANNELS[id]);
+    if(role==='Operador'&&!channels.length)throw new Error('Escolha pelo menos um canal para o operador.');
+    const existing=state.users[email];
+    if(existing?.role==='Administrador'&&role!=='Administrador'&&Object.values(state.users).filter(item=>item?.role==='Administrador').length<=1)throw new Error('O sistema precisa manter pelo menos um administrador.');
+    state.users[email]={name:String(profile.name||email).trim(),email,role,channels:role==='Administrador'?Object.keys(CHANNELS):channels};
+    audit('Permissão de usuário atualizada',email+' · '+role,'global');return state.users[email];
+  }
+  function counts(scope,week){
+    if(scope==='week')return getWeek(session.channel,week).length;if(scope==='channel'){const c=currentChannel();return c.rules.length+c.occurrences.length+c.exceptions.length+c.catalog.length;}
+    if(!isAdmin())return 0;
+    return state.globalCatalog.length+Object.values(state.channels).reduce((sum,c)=>sum+c.rules.length+c.occurrences.length+c.exceptions.length+c.catalog.length,0);
+  }
+  function makeFullBackup(reason='Copia administrativa'){
+    requireAdmin();return {schemaVersion:VERSION,type:'ebc-grade-full-internal-backup',id:uid('backup'),exportedAt:new Date().toISOString(),exportedBy:session.user,reason,state:clone(state)};
+  }
+  function makeChannelBackup(reason='Copia manual do canal',channel=session.channel){
+    requireChannelAccess(channel);return {schemaVersion:VERSION,type:'ebc-grade-channel-backup',id:uid('backup'),channel,channelName:CHANNELS[channel].name,exportedAt:new Date().toISOString(),exportedBy:session.user,reason,data:clone(state.channels[channel])};
+  }
+  function snapshot(reason,scope='channel'){
+    const backup=scope==='global'?makeFullBackup(reason):makeChannelBackup(reason);
+    state.backups.unshift({id:backup.id,at:backup.exportedAt,user:backup.exportedBy,reason:backup.reason,channel:backup.channel||'global'});state.backups=state.backups.slice(0,50);return backup;
+  }
+  function createCleanupBackup(scope,week){
+    if(scope==='global')return makeFullBackup('Antes da limpeza global');
+    requireChannelAccess();return makeChannelBackup(scope==='week'?'Antes da limpeza da semana '+isoDate(startOfWeek(week)):'Antes da limpeza do canal');
+  }
+  function cleanup(scope,week){
+    if(scope==='global')requireAdmin();else requireChannelAccess();
+    if(scope==='week'){const start=isoDate(startOfWeek(week)),end=isoDate(addDays(start,6)),c=currentChannel();c.occurrences=c.occurrences.filter(o=>o.date<start||o.date>end);c.exceptions=c.exceptions.filter(e=>e.date<start||e.date>end);c.skipRanges.push({id:uid('skip'),start,end,reason:'Limpeza semanal'});}
+    else if(scope==='channel'){state.channels[session.channel]=emptyChannel();}
+    else if(scope==='global'){state.globalCatalog=[];Object.keys(CHANNELS).forEach(id=>{state.channels[id]=emptyChannel();persist('channel:'+id);});state.imports=[];}
+    else throw new Error('Tipo de limpeza invalido.');
+    audit('Limpeza executada',scope==='week'?formatDate(startOfWeek(week)):(scope==='channel'?CHANNELS[session.channel].name:'Todos os canais'),scope==='global'?'global':'channel');return true;
+  }
+  function makeBackup(){return makeChannelBackup();}
+  function inspectBackup(data){
+    requireChannelAccess();assertSafeTree(data,'Copia de seguranca');
+    if(!data||data.type!=='ebc-grade-channel-backup'||+data.schemaVersion!==VERSION||data.channel!==session.channel)throw new Error('Escolha uma copia valida do canal '+CHANNELS[session.channel].name+'.');
+    const checked=validateChannelData(data.data);
+    return {channel:data.channel,channelName:CHANNELS[data.channel].name,exportedAt:data.exportedAt||'',exportedBy:data.exportedBy||'',reason:data.reason||'',counts:{catalog:checked.catalog.length,rules:checked.rules.length,occurrences:checked.occurrences.length,exceptions:checked.exceptions.length},data:checked};
+  }
+  function restoreBackup(data){
+    const checked=inspectBackup(data),recovery=makeChannelBackup('Antes de restaurar copia externa');
+    state.channels[session.channel]=checked.data;audit('Copia do canal restaurada',(checked.exportedAt||'Data desconhecida')+' · '+(checked.exportedBy||'Usuario desconhecido'),'channel');
+    return {channel:session.channel,recovery,counts:checked.counts};
+  }
+  function exportRows(){
+    const programs=getCatalog(),programRows=[],seasonRows=[],episodeRows=[],rightRows=[];
+    const colorNames=new Map((state.colorGroups||[]).map(group=>[group.id,group.name]));programs.forEach(p=>{programRows.push({ID:p.id,PROGRAMA:p.title,TIPO:p.type,ORIGEM:p.origin,CATEGORIA:p.category,GRUPO_COR:colorNames.get(p.colorGroupId)||'',DURACAO:p.defaultDuration,CONTINUO:p.continuous?'Sim':'Não',ESCOPO:p.scope});(p.seasons||[]).forEach(s=>{seasonRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,TEMPORADA:s.number,TITULO:s.title,ORDEM:s.order});(s.episodes||[]).forEach(e=>episodeRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,EPISODIO_ID:e.id,NUMERO:e.number,TITULO:e.title,DURACAO:e.duration||p.defaultDuration,SITUACAO:e.status||'available',SINOPSE:e.synopsis||''}));});(p.rights||[]).forEach(r=>rightRows.push({PROGRAMA_ID:p.id,DIREITO_ID:r.id,CONTRATO:r.contract,INICIO:r.startsAt,FIM:r.endsAt,LIMITE:r.exhibitionLimit??'ILIMITADAS',REPRISE_CONTA:r.rerunsCount===false?'Não':'Sim',CANAIS:(r.channels||[]).join(', ')}));});
+    const exhibitions=[];allowedChannelIds().forEach(channel=>getOccurrences(channel,isoDate(addDays(new Date(),-365)),isoDate(addDays(new Date(),730))).forEach(o=>exhibitions.push({CANAL:CHANNELS[channel].name,DATA:o.date,HORA:o.start,DURACAO:o.duration,PROGRAMA_ID:o.programId,PROGRAMA:o.title,TEMPORADA:o.season,EPISODIO:o.episodeNumber,TITULO_EPISODIO:o.episodeTitle,TIPO:o.type,REPRISE:o.isRerun?'Sim':'Não'})));
+    return {programs:programRows,seasons:seasonRows,episodes:episodeRows,rights:rightRows,exhibitions};
+  }
+  function serializeGlobal(){requireAdmin();return {schemaVersion:VERSION,type:'ebc-grade-global',savedAt:new Date().toISOString(),savedBy:session.user,globalCatalog:clone(state.globalCatalog),colorGroups:clone(state.colorGroups),imports:clone(state.imports),audit:clone(state.audit),users:clone(state.users),preferences:clone(state.preferences),backups:clone(state.backups)};}
+  function serializeChannel(channel=session.channel){requireChannelAccess(channel);return {schemaVersion:VERSION,type:'ebc-grade-channel',channel,savedAt:new Date().toISOString(),savedBy:session.user,data:clone(state.channels[channel])};}
+  function mergeGlobal(remote){
+    validateGlobalData(remote);
+    state.globalCatalog=clone(remote.globalCatalog||[]);state.colorGroups=clone(remote.colorGroups||defaultColorGroups());state.imports=clone(remote.imports||[]).slice(0,100);state.audit=clone(remote.audit||[]).slice(0,600);
+    state.users=Object.fromEntries(Object.entries(remote.users||{}).map(([email,profile])=>{const key=String(email||'').trim().toLowerCase(),role=profile?.role==='Administrador'?'Administrador':'Operador',channels=(profile?.channels||[]).filter(id=>CHANNELS[id]);return [key,{name:String(profile?.name||key),email:key,role,channels:role==='Administrador'?Object.keys(CHANNELS):channels}];}).filter(([email])=>email.includes('@')));
+    state.preferences=remote.preferences&&typeof remote.preferences==='object'&&!Array.isArray(remote.preferences)?clone(remote.preferences):{};state.backups=clone(remote.backups||[]).slice(0,50);cachePut(stateCacheKey(),state);return true;
+  }
+  function mergeChannel(remote){if(!remote||+remote.schemaVersion!==VERSION||!CHANNELS[remote.channel])throw new Error('Arquivo de canal incompatível.');requireChannelAccess(remote.channel);state.channels[remote.channel]=validateChannelData(remote.data||{});cachePut(stateCacheKey(),state);return true;}
+  function importLegacySnapshot(snapshot,channel=session.channel){
+    requireChannelAccess(channel);assertSafeTree(snapshot,'Dados antigos');if(!snapshot)return false;if(Array.isArray(snapshot.catalog)&&!state.globalCatalog.length&&isAdmin())state.globalCatalog=snapshot.catalog.map(normalizeLegacyProgram).filter(p=>p.title).slice(0,LIMITS.globalCatalog);
+    const target=state.channels[channel];Object.entries(snapshot.grade||{}).forEach(([week,items])=>(items||[]).forEach(item=>target.occurrences.push({id:'graph_v4_'+String(item.id||uid('old')),channel,date:isoDate(addDays(week,DAY_INDEX[item.dia]??0)),start:item.hora||'00:00',duration:+item.dur||30,programId:'',title:item.obra||'Programa',season:item.temp||'',episodeNumber:item.ep||'',episodeTitle:item.subtit||'',type:item.isRepr?'rerun':(normalize(item.cat).includes('ao vivo')?'live':'recorded'),origin:legacyOrigin(item.cat),category:item.cat||'',isRerun:!!item.isRepr,source:'migration'})));
+    audit('Versão online antiga migrada','Dados v4 convertidos para v6.','global');return true;
+  }
+  const api={VERSION,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,removeProgram,getColorGroups,saveColorGroup,colorGroupUsage,removeColorGroup,getOccurrences,getWeek,conflicts,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,timeFromMinutes,formatDate,normalizeDate,programId,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
+  window.EBCGrade=api;
+})();
