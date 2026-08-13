@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta name="application-version" content="6.1.0">
+  <meta name="application-version" content="6.2.0">
   <meta name="application-release-date" content="13/08/2026">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://acessoainformacao.ebc.com.br https://balletparaisopolis.org.br https://curtatituloscdn-fhdpeyg2gjc2d5c6.z03.azurefd.net https://ebc.com.br https://i.ytimg.com https://imagens.ebc.com.br https://prodav3.ebc.com.br https://s2.glbimg.com https://tvbrasil.ebc.com.br https://tvbrasilinternacional.ebc.com.br https://www.docsp.com; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://acessoainformacao.ebc.com.br https://balletparaisopolis.org.br https://curtatituloscdn-fhdpeyg2gjc2d5c6.z03.azurefd.net https://ebc.com.br https://i.ytimg.com https://imagens.ebc.com.br https://prodav3.ebc.com.br https://s2.glbimg.com https://tvbrasil.ebc.com.br https://tvbrasilinternacional.ebc.com.br https://upload.wikimedia.org https://www.docsp.com; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
   <title>Sistema de Grade - EBC</title>
-  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260813-v610">
-  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260813-v610">
+  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260813-v620">
+  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260813-v620">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -69,7 +69,8 @@
         </div>
       </header>
       <section id="page-grade" class="page active" aria-labelledby="page-title">
-        <div class="grade-toolbar no-print">
+        <div class="grade-sticky-zone no-print">
+        <div class="grade-toolbar">
           <div class="week-navigation">
             <button id="previous-week" class="icon-button" type="button" aria-label="Semana anterior"><span data-icon="left"></span></button>
             <button id="current-week" class="button button-secondary button-compact" type="button">Atual</button>
@@ -77,15 +78,16 @@
             <span id="week-number" class="week-number-badge">Semana</span>
             <label><span class="sr-only">Escolher data</span><input id="week-picker" type="date"></label>
           </div>
-          <div class="grade-zoom" aria-label="Zoom vertical da grade"><button id="zoom-out" class="icon-button" type="button" aria-label="Reduzir altura da grade"><span data-icon="minus"></span></button><label><span id="zoom-label">15 min · 100%</span><input id="grade-zoom" type="range" min="75" max="175" step="25" value="100"></label><button id="zoom-in" class="icon-button" type="button" aria-label="Ampliar altura da grade"><span data-icon="plus"></span></button></div>
+          <div class="grade-zoom" aria-label="Zoom vertical da grade"><button id="zoom-out" class="icon-button" type="button" aria-label="Reduzir altura da grade"><span data-icon="minus"></span></button><label><span id="zoom-label">15 min · 100%</span><input id="grade-zoom" type="range" min="40" max="175" step="10" value="100"></label><button id="zoom-in" class="icon-button" type="button" aria-label="Ampliar altura da grade"><span data-icon="plus"></span></button></div>
           <button id="new-schedule" class="button button-primary" type="button"><span data-icon="plus"></span> Programar conteúdo</button>
         </div>
         <div class="grade-heading-row"><div><h2 id="week-label">Semana vigente</h2><p id="week-subtitle" class="muted"></p></div><div id="grade-summary" class="summary-pills"></div></div>
-        <div class="filter-panel no-print">
+        <div class="filter-panel">
           <label class="search-field"><span data-icon="search"></span><input id="grade-search" type="search" placeholder="Buscar programa, episódio ou categoria"></label>
           <div id="grade-filters" class="filter-chips" aria-label="Filtros da grade"></div>
           <label class="toggle"><input id="hide-unmatched" type="checkbox"><span>Ocultar os demais</span></label>
           <button id="clear-filters" class="text-button" type="button">Limpar filtros</button>
+        </div>
         </div>
         <div id="day-focus-bar" class="day-focus-bar no-print hidden"><button id="back-to-week" class="button button-secondary" type="button"><span data-icon="left"></span> Voltar à semana</button><div><p class="eyebrow">Dia em foco</p><strong id="focused-day-label">Dia</strong></div><div class="day-focus-actions"><button id="previous-day" class="icon-button" type="button" aria-label="Dia anterior"><span data-icon="left"></span></button><button id="next-day" class="icon-button" type="button" aria-label="Próximo dia"><span data-icon="right"></span></button></div></div>
         <div class="time-shortcuts-bar no-print">
@@ -145,7 +147,7 @@
           <div class="panel-heading"><div><h3>Exibição e opacidade das imagens</h3><p class="muted">Ajuste a transparência das imagens de fundo automáticas nos cartões da grade e do catálogo.</p></div></div>
           <div class="form-grid" style="grid-template-columns:minmax(200px,1fr) auto;align-items:center;gap:16px;margin-top:12px">
             <label class="toggle"><input id="global-artwork-enabled" type="checkbox" checked> Exibir imagens de fundo dos programas<span class="helper">Desative para ocultar as imagens na grade e no catálogo sem apagar os arquivos.</span></label>
-            <label>Opacidade das imagens de fundo: <strong id="global-opacity-label">14%</strong><input id="global-artwork-opacity" type="range" min="5" max="35" step="1" value="14"><span class="helper">Altera a transparência do fundo automático de todos os programas.</span></label>
+            <label>Opacidade das imagens de fundo: <strong id="global-opacity-label">14%</strong><input id="global-artwork-opacity" type="range" min="5" max="60" step="1" value="14"><span class="helper">Altera a intensidade do fundo automático de todos os programas. No PDF, as imagens não são impressas.</span></label>
           </div>
         </article>
         <div class="cleanup-grid">

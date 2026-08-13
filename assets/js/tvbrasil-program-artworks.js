@@ -1289,6 +1289,18 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
     "image_url": "https://imagens.ebc.com.br/ktOMon6J_Nm8z00iGgU9g8EbUYo=/1140x560/smart/https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/foto_de_perfil.png?itok=I6JptrQ1",
     "method": "direct_slug"
   },
+  "ELEIÇÕES 2024": {
+    "title": "Eleições 2024",
+    "page_url": "https://tvbrasil.ebc.com.br/eleicoes-2024",
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/0/05/Flag_of_Brazil.svg",
+    "method": "web_verified_tvbrasil_wikimedia_public_domain"
+  },
+  "ELEIÇÕES": {
+    "title": "Eleições",
+    "page_url": "https://tvbrasil.ebc.com.br/eleicoes-2024",
+    "image_url": "https://upload.wikimedia.org/wikipedia/commons/0/05/Flag_of_Brazil.svg",
+    "method": "web_verified_tvbrasil_wikimedia_public_domain"
+  },
   "ÚLTIMA CIDADE": {
     "title": "ÚLTIMA CIDADE",
     "page_url": "https://www.ebc.com.br/imprensa/2026/filmes-da-tv-brasil-de-27-07-a-02-08.2026",
