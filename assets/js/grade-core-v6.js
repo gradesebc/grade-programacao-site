@@ -74,6 +74,7 @@
   let state = emptyState();
   let session = {user:null,email:'',role:'Operador',channel:localStorage.getItem('tv_canal_ativo')||'',dirty:new Set()};
   let dbPromise = null;
+  const gradeUndo = new Map();
 
   function profileFor(email=session.email){
     const key=String(email||'').toLowerCase()||normalize(session.user);
@@ -183,6 +184,7 @@
   }
   async function clearLocalData(){
     state=emptyState();session={user:null,email:'',role:'Operador',channel:'',dirty:new Set()};
+    gradeUndo.clear();
     ['tv_canal_ativo','tv_user','tv_user_email','tv_perfil'].forEach(key=>localStorage.removeItem(key));
     try{const db=await openDb();if(db)await new Promise((resolve,reject)=>{const tx=db.transaction('state','readwrite');tx.objectStore('state').clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}catch(err){console.warn('Nao foi possivel limpar o cache local',err);}
   }
@@ -194,6 +196,23 @@
   function audit(action,detail='',scope='channel'){
     state.audit.unshift({id:uid('audit'),at:new Date().toISOString(),user:session.user||'Usuário',email:session.email,channel:session.channel,action,detail});
     state.audit=state.audit.slice(0,600); persist(scope);
+  }
+  function gradeUndoSnapshot(channel=session.channel){
+    const source=state.channels[channel]||emptyChannel();
+    return clone({rules:source.rules,occurrences:source.occurrences,exceptions:source.exceptions,skipRanges:source.skipRanges,updatedAt:source.updatedAt});
+  }
+  function captureGradeUndo(label){
+    if(!session.channel||!state.channels[session.channel])return;
+    const stack=gradeUndo.get(session.channel)||[];
+    stack.push({label:String(label||'Alteração da grade'),at:new Date().toISOString(),data:gradeUndoSnapshot()});
+    gradeUndo.set(session.channel,stack.slice(-20));
+  }
+  function canUndoGrade(channel=session.channel){return !!channel&&!!gradeUndo.get(channel)?.length;}
+  function undoLastGradeChange(){
+    requireChannelAccess();const stack=gradeUndo.get(session.channel)||[],entry=stack.pop();
+    if(!entry)throw new Error('Não há outra alteração da grade para desfazer nesta sessão.');
+    const channel=currentChannel();channel.rules=clone(entry.data.rules||[]);channel.occurrences=clone(entry.data.occurrences||[]);channel.exceptions=clone(entry.data.exceptions||[]);channel.skipRanges=clone(entry.data.skipRanges||[]);channel.updatedAt=entry.data.updatedAt||null;
+    gradeUndo.set(session.channel,stack);audit('Alteração da grade desfeita',entry.label);return {label:entry.label,at:entry.at};
   }
   function programId(title,season='',contract=''){const source=[title,season,contract].join('|');return 'program_'+slug(source)+'_'+stableHash(titleKey(source));}
   function normalizeSubgroups(value){
@@ -410,10 +429,25 @@
   }
   function getWeek(channel,week){const start=isoDate(startOfWeek(week));return getOccurrences(channel,start,isoDate(addDays(start,6)));}
   function conflicts(items){
-    const found=[];const dayValue=value=>{const parsed=parseLocalDate(value);return parsed?Math.floor(Date.UTC(parsed.getFullYear(),parsed.getMonth(),parsed.getDate())/86400000):0;};
-    const timeline=(items||[]).map(item=>{const start=dayValue(item.date)*1440+opMinutes(item.start),duration=Math.max(1,Math.min(1440,+item.duration||30));return {item,start,end:start+duration};}).sort((a,b)=>a.start-b.start||a.end-b.end);
+    const found=[];const timeline=(items||[]).map(item=>{const start=operationalAbsoluteStart(item.date,item.start),duration=Math.max(1,Math.min(1440,+item.duration||30));return {item,start,end:start+duration};}).sort((a,b)=>a.start-b.start||a.end-b.end);
     for(let i=0;i<timeline.length;i++)for(let j=i+1;j<timeline.length;j++){const a=timeline[i],b=timeline[j];if(b.start>=a.end)break;found.push({a:a.item,b:b.item,date:a.item.date});}
     return found;
+  }
+  function operationalDayValue(value){const parsed=parseLocalDate(value);return parsed?Math.floor(Date.UTC(parsed.getFullYear(),parsed.getMonth(),parsed.getDate())/86400000):0;}
+  function operationalAbsoluteStart(date,start){return operationalDayValue(date)*1440+opMinutes(start);}
+  function findNearestAvailableSlot(item,date,start,duration=item?.duration||30){
+    requireChannelAccess();if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||''))||!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(start||'')))throw new Error('A data ou o horário de destino é inválido.');
+    const requestedOp=Math.max(0,Math.min(1425,Math.round(opMinutes(start)/15)*15)),safeDuration=Math.max(1,Math.min(1440,+duration||30));
+    const others=getOccurrences(session.channel,isoDate(addDays(date,-1)),isoDate(addDays(date,1))).filter(other=>!sameOccurrence(other,item));
+    const intervals=others.map(other=>{const absolute=operationalAbsoluteStart(other.date,other.start);return {start:absolute,end:absolute+Math.max(1,Math.min(1440,+other.duration||30))};});
+    const isFree=op=>{const absolute=operationalAbsoluteStart(date,timeFromOpMinutes(op)),end=absolute+safeDuration;return intervals.every(interval=>end<=interval.start||absolute>=interval.end);};
+    if(isFree(requestedOp))return {date,start:timeFromOpMinutes(requestedOp),adjusted:false,requestedStart:timeFromOpMinutes(requestedOp)};
+    const requestedAbsolute=operationalAbsoluteStart(date,timeFromOpMinutes(requestedOp)),originalAbsolute=operationalAbsoluteStart(item?.date||date,item?.start||start),preferredDirection=requestedAbsolute>=originalAbsolute?1:-1;
+    for(let distance=15;distance<=1425;distance+=15){
+      const candidates=[requestedOp+distance*preferredDirection,requestedOp-distance*preferredDirection];
+      for(const op of candidates)if(op>=0&&op<=1425&&isFree(op))return {date,start:timeFromOpMinutes(op),adjusted:true,requestedStart:timeFromOpMinutes(requestedOp)};
+    }
+    throw new Error('Não há espaço livre suficiente neste dia para esse programa.');
   }
   function validateRule(rule){
     assertSafeTree(rule,'Regra');if(currentChannel().rules.length>=LIMITS.rules&&!rule.id)throw new Error('O canal atingiu o limite de regras recorrentes.');
@@ -424,13 +458,14 @@
     const end=isoDate(addDays(candidate.startsAt,90));const collision=conflicts(getOccurrences(session.channel,candidate.startsAt,end));currentChannel().rules=testState;
     if(collision.length)throw new Error('A regra cria conflito de horário nos próximos 90 dias. Ajuste o horário ou a duração.');return candidate;
   }
-  function saveRule(rule){requireChannelAccess();const candidate=validateRule(rule);const list=currentChannel().rules;const index=list.findIndex(r=>r.id===candidate.id);if(index>=0)list[index]=candidate;else list.push(candidate);audit(index>=0?'Regra atualizada':'Programação recorrente criada',candidate.title||getCatalog().find(p=>p.id===candidate.programId)?.title||'Programa');return candidate;}
-  function saveOccurrence(item){
+  function saveRule(rule){requireChannelAccess();const candidate=validateRule(rule);const list=currentChannel().rules;const index=list.findIndex(r=>r.id===candidate.id);captureGradeUndo(index>=0?'Editar regra recorrente':'Criar regra recorrente');if(index>=0)list[index]=candidate;else list.push(candidate);audit(index>=0?'Regra atualizada':'Programação recorrente criada',candidate.title||getCatalog().find(p=>p.id===candidate.programId)?.title||'Programa');return candidate;}
+  function saveOccurrence(item,control={}){
     requireChannelAccess();
     assertSafeTree(item,'Exibicao');if(!/^\d{4}-\d{2}-\d{2}$/.test(String(item?.date||''))||!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(item?.start||'')))throw new Error('A data ou o horario da exibicao e invalido.');
     const occurrence={...clone(item),title:String(item.title||'Programa').trim().slice(0,300),duration:Math.max(1,Math.min(1440,+item.duration||30)),id:item.id||uid('event'),channel:session.channel,source:item.source||'manual'};const list=currentChannel().occurrences;const index=list.findIndex(o=>o.id===occurrence.id);if(index<0&&list.length>=LIMITS.occurrences)throw new Error('O canal atingiu o limite de exibicoes manuais.');
     const others=getOccurrences(session.channel,isoDate(addDays(occurrence.date,-1)),isoDate(addDays(occurrence.date,1))).filter(o=>!sameOccurrence(o,occurrence));
     if(conflicts([...others,occurrence]).length)throw new Error('Já existe um programa ocupando esse horário.');
+    if(control?.capture!==false)captureGradeUndo(index>=0?'Editar exibição':'Adicionar exibição');
     if(index>=0)list[index]=occurrence;else list.push(occurrence);audit(index>=0?'Exibição atualizada':'Exibição adicionada',occurrence.title);return occurrence;
   }
   function validateOccurrenceMove(item,changes){
@@ -444,7 +479,8 @@
     const needsException=!(item.source==='manual'||item.source==='migration');
     if(needsException&&currentChannel().exceptions.length+(scope==='week'?7:1)>LIMITS.exceptions)throw new Error('O canal atingiu o limite de excecoes.');
     if(scope==='one')validateOccurrenceMove(item,changes);
-    if(item.source==='manual'||item.source==='migration')return saveOccurrence({...item,...changes});
+    captureGradeUndo('Alterar '+(item.title||'exibição'));
+    if(item.source==='manual'||item.source==='migration')return saveOccurrence({...item,...changes},{capture:false});
     if(scope==='future'){const anchor=occurrenceAnchorDate(item),rule=currentChannel().rules.find(r=>r.id===item.ruleId);if(rule){Object.assign(rule,changes,{startsAt:anchor});audit('Regra alterada a partir de '+formatDate(anchor),item.title);return rule;}}
     if(scope==='week'){const week=isoDate(startOfWeek(item.date));DAYS.forEach((_,i)=>{const date=isoDate(addDays(week,i));currentChannel().exceptions.push({id:uid('exception'),ruleId:item.ruleId,date,action:'change',changes:clone(changes)});});}
     else upsertOccurrenceException(item,'change',changes);
@@ -453,6 +489,7 @@
   function cancelOccurrence(item,scope='one'){
     requireChannelAccess();
     if(item.source!=='manual'&&item.source!=='migration'&&scope!=='future'&&currentChannel().exceptions.length>=LIMITS.exceptions)throw new Error('O canal atingiu o limite de excecoes.');
+    captureGradeUndo('Cancelar '+(item.title||'exibição'));
     if(item.source==='manual'||item.source==='migration'){const list=currentChannel().occurrences;const i=list.findIndex(o=>o.id===item.id);if(i>=0)list.splice(i,1);}
     else if(scope==='future'){const rule=currentChannel().rules.find(r=>r.id===item.ruleId);if(rule)rule.endsAt=isoDate(addDays(occurrenceAnchorDate(item),-1));}
     else upsertOccurrenceException(item,'cancel');
@@ -619,7 +656,7 @@
   }
   function restoreBackup(data){
     const checked=inspectBackup(data),recovery=makeChannelBackup('Antes de restaurar copia externa');
-    state.channels[session.channel]=checked.data;audit('Copia do canal restaurada',(checked.exportedAt||'Data desconhecida')+' · '+(checked.exportedBy||'Usuario desconhecido'),'channel');
+    state.channels[session.channel]=checked.data;gradeUndo.delete(session.channel);audit('Copia do canal restaurada',(checked.exportedAt||'Data desconhecida')+' · '+(checked.exportedBy||'Usuario desconhecido'),'channel');
     return {channel:session.channel,recovery,counts:checked.counts};
   }
   function exportRows(){
@@ -636,12 +673,12 @@
     state.users=Object.fromEntries(Object.entries(remote.users||{}).map(([email,profile])=>{const key=String(email||'').trim().toLowerCase(),role=profile?.role==='Administrador'?'Administrador':'Operador',channels=(profile?.channels||[]).filter(id=>CHANNELS[id]);return [key,{name:String(profile?.name||key),email:key,role,channels:role==='Administrador'?Object.keys(CHANNELS):channels}];}).filter(([email])=>email.includes('@')));
     const remotePreferences=remote.preferences&&typeof remote.preferences==='object'&&!Array.isArray(remote.preferences)?remote.preferences:{};state.preferences={...defaultPreferences(),...clone(remotePreferences)};state.preferences.programArtworkEnabled=state.preferences.programArtworkEnabled!==false;state.preferences.programArtworkOpacity=Math.max(5,Math.min(60,+state.preferences.programArtworkOpacity||14));state.backups=clone(remote.backups||[]).slice(0,50);cachePut(stateCacheKey(),state);return true;
   }
-  function mergeChannel(remote){if(!remote||+remote.schemaVersion!==VERSION||!CHANNELS[remote.channel])throw new Error('Arquivo de canal incompatível.');requireChannelAccess(remote.channel);state.channels[remote.channel]=validateChannelData(remote.data||{});cachePut(stateCacheKey(),state);return true;}
+  function mergeChannel(remote){if(!remote||+remote.schemaVersion!==VERSION||!CHANNELS[remote.channel])throw new Error('Arquivo de canal incompatível.');requireChannelAccess(remote.channel);state.channels[remote.channel]=validateChannelData(remote.data||{});gradeUndo.delete(remote.channel);cachePut(stateCacheKey(),state);return true;}
   function importLegacySnapshot(snapshot,channel=session.channel){
     requireChannelAccess(channel);assertSafeTree(snapshot,'Dados antigos');if(!snapshot)return false;if(Array.isArray(snapshot.catalog)&&!state.globalCatalog.length&&isAdmin())state.globalCatalog=snapshot.catalog.map(normalizeLegacyProgram).filter(p=>p.title).slice(0,LIMITS.globalCatalog);
     const target=state.channels[channel];Object.entries(snapshot.grade||{}).forEach(([week,items])=>(items||[]).forEach(item=>target.occurrences.push({id:'graph_v4_'+String(item.id||uid('old')),channel,date:isoDate(addDays(week,DAY_INDEX[item.dia]??0)),start:item.hora||'00:00',duration:+item.dur||30,programId:'',title:item.obra||'Programa',season:item.temp||'',episodeNumber:item.ep||'',episodeTitle:item.subtit||'',type:item.isRepr?'rerun':(normalize(item.cat).includes('ao vivo')?'live':'recorded'),origin:legacyOrigin(item.cat),category:item.cat||'',isRerun:!!item.isRepr,source:'migration'})));
     audit('Versão online antiga migrada','Dados v4 convertidos para v6.','global');return true;
   }
-  const api={VERSION,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,getOccurrences,getWeek,conflicts,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
+  const api={VERSION,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,getOccurrences,getWeek,conflicts,findNearestAvailableSlot,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,canUndoGrade,undoLastGradeChange,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
   window.EBCGrade=api;
 })();
