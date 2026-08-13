@@ -227,6 +227,32 @@
     const fileName=String(value.fileName||'').trim();if(!/^[a-z0-9][a-z0-9._-]{0,180}\.webp$/i.test(fileName))return null;
     return {fileName,mimeType:'image/webp',size:Math.max(0,Math.min(1024*1024,+value.size||0)),opacity:Math.max(.06,Math.min(.24,+value.opacity||.14)),updatedAt:String(value.updatedAt||'').slice(0,40)};
   }
+  function episodeModeFor(program){
+    const explicit=String(program?.episodeMode||'').trim();
+    if(['none','continuous','catalog'].includes(explicit))return explicit;
+    const hasEpisodes=(program?.seasons||[]).some(season=>(season.episodes||[]).length||+season.episodeCount>0);
+    if(hasEpisodes)return 'catalog';
+    if(program?.continuous&&program?.type!=='live'&&program?.origin!=='news')return 'continuous';
+    return 'none';
+  }
+  function enrichEpisodeTitles(programs){
+    let changed=0;
+    const source=typeof window!=='undefined'&&window.TVBRASIL_EPISODE_TITLES&&typeof window.TVBRASIL_EPISODE_TITLES==='object'?window.TVBRASIL_EPISODE_TITLES:{};
+    const lookup=new Map(Object.entries(source).map(([title,record])=>[titleKey(title),record]));
+    (programs||[]).forEach(program=>{
+      const record=lookup.get(titleKey(program.title));if(!record)return;
+      (program.seasons||[]).forEach(season=>{
+        const list=record.seasons?.[String(season.number||'')]||[];if(!list.length)return;
+        (season.episodes||[]).forEach((episode,index)=>{
+          if(String(episode.title||'').trim())return;
+          const numeric=Number.parseInt(String(episode.number||''),10);
+          const title=list[Number.isFinite(numeric)&&numeric>0?numeric-1:index];
+          if(title){episode.title=title;changed++;}
+        });
+      });
+    });
+    return changed;
+  }
   function normalizeProgramOrigin(value){
     const text=normalize(value);if(!text)return'licensed';if(text.includes('producao propria')||text==='own')return'own';if(text.includes('independente')||text.includes('rncp')||text==='independent')return'independent';if(text.includes('jornal')||text==='news')return'news';if(text.includes('institucional')||text.includes('eleitoral')||text==='institutional')return'institutional';return'licensed';
   }
@@ -237,7 +263,7 @@
     Object.keys(CHANNELS).forEach(id=>{next.channels[id]={...emptyChannel(),...(next.channels[id]||{})};});
     ['globalCatalog','imports','audit','backups'].forEach(k=>{if(!Array.isArray(next[k]))next[k]=[];});
     if(!Array.isArray(next.colorGroups))next.colorGroups=defaultColorGroups();
-    next.users=next.users||{};const incomingPreferences=next.preferences&&typeof next.preferences==='object'&&!Array.isArray(next.preferences)?next.preferences:{};next.preferences={...defaultPreferences(),...incomingPreferences};next.preferences.programArtworkEnabled=next.preferences.programArtworkEnabled!==false;next.preferences.programArtworkOpacity=Math.max(5,Math.min(90,+next.preferences.programArtworkOpacity||14));return next;
+    next.users=next.users||{};const incomingPreferences=next.preferences&&typeof next.preferences==='object'&&!Array.isArray(next.preferences)?next.preferences:{};next.preferences={...defaultPreferences(),...incomingPreferences};next.preferences.programArtworkEnabled=next.preferences.programArtworkEnabled!==false;next.preferences.programArtworkOpacity=Math.max(5,Math.min(90,+next.preferences.programArtworkOpacity||14));enrichEpisodeTitles(next.globalCatalog);Object.values(next.channels).forEach(channel=>enrichEpisodeTitles(channel.catalog));return next;
   }
   function normalizeRating(value){
     const text=String(value||'').trim();if(!text)return '';
@@ -283,7 +309,7 @@
     return {
       id:externalId||programId(title),title,scope:'global',type:normalizeProgramType(get('TIPO')),origin,category,subgroups,
       cl,status,distributor,targetAudience,nationality,countryOfOrigin,stateOfOrigin,cityOfOrigin,directorate,contentFormat,suggestedSlot,productionYear,deliveryExpected,exhibitedAt,expiryStatus,totalDuration,
-      colorGroupId,artwork,defaultDuration:duration,continuous:!season,episodeCounter:1,
+      colorGroupId,artwork,defaultDuration:duration,episodeMode:season?'catalog':'none',continuous:false,episodeCounter:1,
       seasons:season?[{id:seasonId,number:season,title:'Temporada '+season,order:1,episodeCount:count,totalDuration,productionYear,status,distributor,targetAudience,cl,nationality,countryOfOrigin,stateOfOrigin,cityOfOrigin,directorate,contentFormat,suggestedSlot,deliveryExpected,exhibitedAt,sourceRow,sourceRows:[clone(row)],sourceRowNumbers:sourceRow?[sourceRow]:[],sourceConflicts:[],episodes:count?Array.from({length:count},(_,i)=>({id:'episode_'+slug(title)+'_'+slug(season)+'_'+(i+1),number:i+1,title:'',duration,status:'available'})):[]}]:[],
       rights:hasRight?[rightData]:[],raw:clone(row),sourceRows:[clone(row)],sourceRowNumbers:sourceRow?[sourceRow]:[],sourceConflicts:[],
       importFields:{origin:!!String(originRaw||'').trim(),type:!!String(get('TIPO')||'').trim(),category:!!String(categoryRaw||'').trim(),subgroups:!!String(subgroupsRaw||'').trim(),colorGroup:!!colorGroupName,artwork:!!artwork},updatedAt:new Date().toISOString()
@@ -341,7 +367,7 @@
   function saveProgram(program,scope='global'){
     if(scope==='global')requireAdmin();else requireChannelAccess();
     assertSafeTree(program,'Programa');const title=String(program?.title||'').trim().slice(0,300);if(!title)throw new Error('Informe o nome do programa.');const seasons=requireArray(program.seasons||[],'Temporadas',500),episodeTotal=seasons.reduce((sum,season)=>sum+requireArray(season?.episodes||[],'Episodios',LIMITS.episodesPerProgram).length,0);if(episodeTotal>LIMITS.episodesPerProgram)throw new Error('O programa excede o limite de '+LIMITS.episodesPerProgram+' episodios.');
-    const list=scope==='channel'?currentChannel().catalog:state.globalCatalog,limit=scope==='channel'?LIMITS.channelCatalog:LIMITS.globalCatalog;const validTypes=['live','recorded','mixed','unspecified'],validOrigins=['own','independent','licensed','news','institutional'];const item={...clone(program),title,id:program.id||programId(title,program.seasons?.[0]?.number||''),scope,type:validTypes.includes(program.type)?program.type:'unspecified',origin:validOrigins.includes(program.origin)?program.origin:'licensed',category:String(program.category||'').trim().slice(0,200),subgroups:normalizeSubgroups(program.subgroups),cl:normalizeRating(program.cl),distributor:String(program.distributor||'').trim(),targetAudience:String(program.targetAudience||'').trim(),countryOfOrigin:String(program.countryOfOrigin||'').trim(),suggestedSlot:String(program.suggestedSlot||'').trim(),colorGroupId:String(program.colorGroupId||'').trim(),artwork:normalizeArtwork(program.artwork),defaultDuration:Math.max(1,Math.min(1440,+program.defaultDuration||30)),updatedAt:new Date().toISOString()};const index=list.findIndex(p=>p.id===item.id);if(index<0&&list.length>=limit)throw new Error('O catalogo atingiu o limite de '+limit+' programas.');if(index>=0)list[index]=item;else list.push(item);audit(index>=0?'Programa atualizado':'Programa cadastrado',item.title,scope==='global'?'global':'channel');return clone(item);
+    const list=scope==='channel'?currentChannel().catalog:state.globalCatalog,limit=scope==='channel'?LIMITS.channelCatalog:LIMITS.globalCatalog;const validTypes=['live','recorded','mixed','unspecified'],validOrigins=['own','independent','licensed','news','institutional'],episodeMode=episodeModeFor(program);const item={...clone(program),title,id:program.id||programId(title,program.seasons?.[0]?.number||''),scope,type:validTypes.includes(program.type)?program.type:'unspecified',origin:validOrigins.includes(program.origin)?program.origin:'licensed',category:String(program.category||'').trim().slice(0,200),subgroups:normalizeSubgroups(program.subgroups),cl:normalizeRating(program.cl),distributor:String(program.distributor||'').trim(),targetAudience:String(program.targetAudience||'').trim(),countryOfOrigin:String(program.countryOfOrigin||'').trim(),suggestedSlot:String(program.suggestedSlot||'').trim(),colorGroupId:String(program.colorGroupId||'').trim(),artwork:normalizeArtwork(program.artwork),defaultDuration:Math.max(1,Math.min(1440,+program.defaultDuration||30)),episodeMode,continuous:episodeMode==='continuous',seasons:episodeMode==='catalog'?seasons:[],updatedAt:new Date().toISOString()};enrichEpisodeTitles([item]);const index=list.findIndex(p=>p.id===item.id);if(index<0&&list.length>=limit)throw new Error('O catalogo atingiu o limite de '+limit+' programas.');if(index>=0)list[index]=item;else list.push(item);audit(index>=0?'Programa atualizado':'Programa cadastrado',item.title,scope==='global'?'global':'channel');return clone(item);
   }
   function bulkUpdatePrograms(refs,changes={},options={}){
     requireArray(refs,'Programas selecionados',LIMITS.globalCatalog+LIMITS.channelCatalog);if(!refs.length)throw new Error('Selecione pelo menos um programa.');assertSafeTree(changes,'Alteracoes em lote');
@@ -394,7 +420,7 @@
   function ruleOccurrence(rule,date,index,program){
     const sequence=episodeSequence(program,rule.selectedSeasons||[]);const cycles=Math.max(1,+rule.cycles||1);const limit=sequence.length?sequence.length*cycles:Infinity;
     if(rule.endMode==='cycles'&&index>=limit)return null;if(rule.endsAt&&date>rule.endsAt)return null;
-    const episode=sequence.length?sequence[index%sequence.length]:null;const number=episode?.number||(rule.continuous!==false?(+rule.startEpisode||1)+index:'');
+    const mode=rule.episodeMode||episodeModeFor(program),episode=mode==='catalog'&&sequence.length?sequence[index%sequence.length]:null;const number=episode?.number||(mode==='continuous'?(+rule.startEpisode||1)+index:'');
     return {id:'gen_'+rule.id+'_'+date,ruleId:rule.id,channel:rule.channel,date,occurrenceDate:date,occurrenceKind:'primary',start:rule.start,duration:+rule.duration||program?.defaultDuration||30,programId:rule.programId,title:rule.title||program?.title||'Programa',season:episode?.season||rule.season||'',episodeId:episode?.id||'',episodeNumber:number,episodeTitle:episode?.title||'',type:rule.type||program?.type||'recorded',origin:rule.origin||program?.origin||'licensed',category:rule.category||program?.category||'',isRerun:false,source:'rule'};
   }
   function occurrenceAnchorDate(item){return item?.occurrenceDate||item?.date||'';}
@@ -590,7 +616,7 @@
         });
       }
     });
-    const programs=Array.from(titleMap.values());enrichProgramsFromExport(workbook,programs);programs.forEach(program=>{program.sourceConflicts=collectSourceConflicts(program.sourceRows,program.sourceRowNumbers);program.sourceRowCount=program.sourceRows.length;(program.seasons||[]).forEach(season=>{if(season.sourceRows?.length)season.sourceConflicts=collectSourceConflicts(season.sourceRows,season.sourceRowNumbers);});});
+    const programs=Array.from(titleMap.values());enrichProgramsFromExport(workbook,programs);enrichEpisodeTitles(programs);programs.forEach(program=>{program.sourceConflicts=collectSourceConflicts(program.sourceRows,program.sourceRowNumbers);program.sourceRowCount=program.sourceRows.length;(program.seasons||[]).forEach(season=>{if(season.sourceRows?.length)season.sourceConflicts=collectSourceConflicts(season.sourceRows,season.sourceRowNumbers);});});
     const exactRows=new Set(rawRows.map(entry=>JSON.stringify(entry.data))),conflicts=programs.filter(program=>program.sourceConflicts.length).map(program=>({programId:program.id,title:program.title,rows:program.sourceRowNumbers,fields:clone(program.sourceConflicts)}));
     return {sheet:table.name,rows:rawRows.length,headers:headers.filter(Boolean),programs,sourceDuplicates:rawRows.length-exactRows.size,conflicts};
   }
@@ -603,7 +629,7 @@
     if(target==='global')requireAdmin();else requireChannelAccess();
     const list=target==='global'?state.globalCatalog:currentChannel().catalog;const before=clone(list);let next;
     if(mode==='replace')next=programs.map(p=>({...p,scope:target==='global'?'global':'channel'}));else{const map=new Map(list.map(p=>[p.id,p])),titleIds=new Map(list.map(p=>[titleKey(p.title),p.id]));programs.forEach(p=>{const matchedId=map.has(p.id)?p.id:titleIds.get(titleKey(p.title)),old=matchedId?map.get(matchedId):null,finalId=old?.id||p.id,merged={...(old||{}),...p,id:finalId,scope:target==='global'?'global':'channel'};if(old){merged.seasons=mergeImportedSeasons(old.seasons||[],p.seasons||[]);merged.rights=mergeImportedRights(old.rights||[],p.rights||[]);}if(old&&!p.importFields?.origin)merged.origin=old.origin;if(old&&!p.importFields?.type)merged.type=old.type;if(old&&!p.importFields?.category)merged.category=old.category;if(old&&!p.importFields?.subgroups)merged.subgroups=clone(old.subgroups||[]);if(old&&!p.importFields?.colorGroup)merged.colorGroupId=old.colorGroupId||'';if(old&&!p.importFields?.artwork)merged.artwork=clone(old.artwork||null);if(old&&matchedId!==p.id)map.delete(matchedId);map.set(finalId,merged);titleIds.set(titleKey(merged.title),finalId);});next=[...map.values()];}
-    if(target==='global')state.globalCatalog=next;else currentChannel().catalog=next;
+    enrichEpisodeTitles(next);if(target==='global')state.globalCatalog=next;else currentChannel().catalog=next;
     state.imports.unshift({id:uid('import'),at:new Date().toISOString(),user:session.user,channel:session.channel,fileName,sheet,target,mode,count:programs.length,before});state.imports=state.imports.slice(0,20);
     audit('Planilha importada',programs.length+' registros de '+(fileName||sheet),target==='global'?'global':'channel');return next.length;
   }
@@ -671,16 +697,16 @@
   function serializeChannel(channel=session.channel){requireChannelAccess(channel);return {schemaVersion:VERSION,type:'ebc-grade-channel',channel,savedAt:new Date().toISOString(),savedBy:session.user,data:clone(state.channels[channel])};}
   function mergeGlobal(remote){
     validateGlobalData(remote);
-    state.globalCatalog=clone(remote.globalCatalog||[]);state.colorGroups=clone(remote.colorGroups||defaultColorGroups());state.imports=clone(remote.imports||[]).slice(0,100);state.audit=clone(remote.audit||[]).slice(0,600);
+    state.globalCatalog=clone(remote.globalCatalog||[]);const researchedTitles=enrichEpisodeTitles(state.globalCatalog);state.colorGroups=clone(remote.colorGroups||defaultColorGroups());state.imports=clone(remote.imports||[]).slice(0,100);state.audit=clone(remote.audit||[]).slice(0,600);
     state.users=Object.fromEntries(Object.entries(remote.users||{}).map(([email,profile])=>{const key=String(email||'').trim().toLowerCase(),role=profile?.role==='Administrador'?'Administrador':'Operador',channels=(profile?.channels||[]).filter(id=>CHANNELS[id]);return [key,{name:String(profile?.name||key),email:key,role,channels:role==='Administrador'?Object.keys(CHANNELS):channels}];}).filter(([email])=>email.includes('@')));
-    const remotePreferences=remote.preferences&&typeof remote.preferences==='object'&&!Array.isArray(remote.preferences)?remote.preferences:{};state.preferences={...defaultPreferences(),...clone(remotePreferences)};state.preferences.programArtworkEnabled=state.preferences.programArtworkEnabled!==false;state.preferences.programArtworkOpacity=Math.max(5,Math.min(90,+state.preferences.programArtworkOpacity||14));state.backups=clone(remote.backups||[]).slice(0,50);cachePut(stateCacheKey(),state);return true;
+    const remotePreferences=remote.preferences&&typeof remote.preferences==='object'&&!Array.isArray(remote.preferences)?remote.preferences:{};state.preferences={...defaultPreferences(),...clone(remotePreferences)};state.preferences.programArtworkEnabled=state.preferences.programArtworkEnabled!==false;state.preferences.programArtworkOpacity=Math.max(5,Math.min(90,+state.preferences.programArtworkOpacity||14));state.backups=clone(remote.backups||[]).slice(0,50);if(researchedTitles)persist("global");else cachePut(stateCacheKey(),state);return true;
   }
-  function mergeChannel(remote){if(!remote||+remote.schemaVersion!==VERSION||!CHANNELS[remote.channel])throw new Error('Arquivo de canal incompatível.');requireChannelAccess(remote.channel);state.channels[remote.channel]=validateChannelData(remote.data||{});gradeUndo.delete(remote.channel);cachePut(stateCacheKey(),state);return true;}
+  function mergeChannel(remote){if(!remote||+remote.schemaVersion!==VERSION||!CHANNELS[remote.channel])throw new Error('Arquivo de canal incompatível.');requireChannelAccess(remote.channel);state.channels[remote.channel]=validateChannelData(remote.data||{});const researchedTitles=enrichEpisodeTitles(state.channels[remote.channel].catalog);gradeUndo.delete(remote.channel);if(researchedTitles)persist("channel");else cachePut(stateCacheKey(),state);return true;}
   function importLegacySnapshot(snapshot,channel=session.channel){
     requireChannelAccess(channel);assertSafeTree(snapshot,'Dados antigos');if(!snapshot)return false;if(Array.isArray(snapshot.catalog)&&!state.globalCatalog.length&&isAdmin())state.globalCatalog=snapshot.catalog.map(normalizeLegacyProgram).filter(p=>p.title).slice(0,LIMITS.globalCatalog);
     const target=state.channels[channel];Object.entries(snapshot.grade||{}).forEach(([week,items])=>(items||[]).forEach(item=>target.occurrences.push({id:'graph_v4_'+String(item.id||uid('old')),channel,date:isoDate(addDays(week,DAY_INDEX[item.dia]??0)),start:item.hora||'00:00',duration:+item.dur||30,programId:'',title:item.obra||'Programa',season:item.temp||'',episodeNumber:item.ep||'',episodeTitle:item.subtit||'',type:item.isRepr?'rerun':(normalize(item.cat).includes('ao vivo')?'live':'recorded'),origin:legacyOrigin(item.cat),category:item.cat||'',isRerun:!!item.isRepr,source:'migration'})));
     audit('Versão online antiga migrada','Dados v4 convertidos para v6.','global');return true;
   }
-  const api={VERSION,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,getOccurrences,getWeek,conflicts,findNearestAvailableSlot,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,canUndoGrade,undoLastGradeChange,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
+  const api={VERSION,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,episodeModeFor,getOccurrences,getWeek,conflicts,findNearestAvailableSlot,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,canUndoGrade,undoLastGradeChange,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
   window.EBCGrade=api;
 })();
