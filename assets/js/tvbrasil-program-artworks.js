@@ -1046,8 +1046,8 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   "REPÓRTER BRASIL": {
     "title": "REPÓRTER BRASIL",
     "page_url": "https://tvbrasil.ebc.com.br/reporterbrasil",
-    "image_url": "https://imagens.ebc.com.br/X_z2R6c6J3iYqK6mYp1Fw2n4vU8=/1140x560/smart/https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/reporter_brasil.png",
-    "method": "direct_slug"
+    "image_url": "https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/ebc7.jpg",
+    "method": "user_supplied_ebc"
   },
   "REPÓRTER BRASIL NOITE": {
     "title": "REPÓRTER BRASIL NOITE",

@@ -1,4 +1,4 @@
 ﻿Sistema de Grade de Programacao - EBC
-Versao: 6.2.4
+Versao: 6.2.5
 Data da versao: 13/08/2026
 Arquivo inicial: index.html

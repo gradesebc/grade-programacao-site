@@ -222,6 +222,8 @@
   }
   function normalizeArtwork(value){
     if(!value||typeof value!=='object'||Array.isArray(value))return null;
+    const directUrl=String(value.url||value.image_url||value.imageUrl||'').trim();
+    if(directUrl&&/^https:\/\/[^\s"'<>]{1,1900}$/i.test(directUrl))return {url:directUrl,source:String(value.source||'catalog').slice(0,60),updatedAt:String(value.updatedAt||'').slice(0,40)};
     const fileName=String(value.fileName||'').trim();if(!/^[a-z0-9][a-z0-9._-]{0,180}\.webp$/i.test(fileName))return null;
     return {fileName,mimeType:'image/webp',size:Math.max(0,Math.min(1024*1024,+value.size||0)),opacity:Math.max(.06,Math.min(.24,+value.opacity||.14)),updatedAt:String(value.updatedAt||'').slice(0,40)};
   }

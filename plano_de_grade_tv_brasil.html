@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta name="application-version" content="6.2.4">
+  <meta name="application-version" content="6.2.5">
   <meta name="application-release-date" content="13/08/2026">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://acessoainformacao.ebc.com.br https://balletparaisopolis.org.br https://curtatituloscdn-fhdpeyg2gjc2d5c6.z03.azurefd.net https://ebc.com.br https://encrypted-tbn0.gstatic.com https://i.ytimg.com https://imagens.ebc.com.br https://m.media-amazon.com https://media.gazetadopovo.com.br https://preview.redd.it https://prodav3.ebc.com.br https://s2.glbimg.com https://tvbrasil.ebc.com.br https://tvbrasilinternacional.ebc.com.br https://upload.wikimedia.org https://www.docsp.com https://www.jornalocandeeiro.com.br https://www.papodecinema.com.br; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
   <title>Sistema de Grade - EBC</title>
-  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260813-v624">
-  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260813-v624">
+  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260813-v625">
+  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260813-v625">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -40,6 +40,7 @@
       </div>
       <nav id="main-nav" class="main-nav">
         <button data-page="grade" class="nav-button active" type="button"><span data-icon="calendar"></span><span class="nav-label">Grade</span></button>
+        <button data-page="metrics" class="nav-button" type="button"><span data-icon="database"></span><span class="nav-label">Métricas de exibição</span></button>
         <button data-page="catalog" class="nav-button" type="button"><span data-icon="library"></span><span class="nav-label">Programas e episódios</span></button>
         <button data-page="import" class="nav-button" type="button"><span data-icon="transfer"></span><span class="nav-label">Importar e exportar</span></button>
         <button data-page="alerts" class="nav-button" type="button"><span data-icon="alert"></span><span class="nav-label">Alertas e vigências</span><b id="alert-badge" class="badge">0</b></button>
@@ -115,6 +116,11 @@
         <div class="catalog-commandbar"><label class="catalog-select-all"><input id="catalog-select-visible" type="checkbox"> <span>Selecionar resultados visíveis</span></label><span id="catalog-selection-count" class="selection-count">Nenhum selecionado</span><div class="catalog-command-actions"><button id="catalog-bulk-edit" class="button button-primary" type="button" disabled>Editar selecionados</button><button id="catalog-clear-selection" class="button button-secondary" type="button" disabled>Limpar seleção</button><div class="catalog-view-switch" role="group" aria-label="Visualização do catálogo"><button class="icon-button active" data-catalog-view="list" type="button" aria-label="Visualização em lista" title="Lista">☰</button><button class="icon-button" data-catalog-view="cards" type="button" aria-label="Visualização em cartões" title="Cartões">▦</button><button class="icon-button" data-catalog-view="compact" type="button" aria-label="Visualização compacta" title="Compacta">≡</button></div></div></div>
         <div id="catalog-list" class="catalog-list view-list"></div>
       </section>
+      <section id="page-metrics" class="page" aria-labelledby="metrics-title">
+        <div class="page-heading"><div><p class="eyebrow">Acompanhamento</p><h2 id="metrics-title">Métricas de exibição</h2><p class="muted">Veja quantas vezes cada programa foi exibido e quanto tempo ocupou na grade deste canal.</p></div><label class="field metrics-period-field">Período<select id="metrics-period"><option value="week">Semana selecionada</option><option value="month">Mês atual</option><option value="year">Ano atual</option><option value="all">Todo o histórico disponível</option></select></label></div>
+        <div id="metrics-summary" class="metric-grid"></div>
+        <div id="metrics-list" class="metrics-list"></div>
+      </section>
       <section id="page-import" class="page" aria-labelledby="import-title">
         <div class="page-heading"><div><p class="eyebrow">Dados seguros</p><h2 id="import-title">Importar e exportar</h2><p class="muted">Confira uma prévia antes de alterar o catálogo.</p></div></div>
         <div class="two-column">
@@ -173,9 +179,9 @@
   <div id="print-root" aria-hidden="true"></div>
   <script src="assets/vendor/xlsx.full.min.js?v=0.20.3"></script>
   <script src="assets/js/microsoft-graph.bundle.js?v=20260813-v624"></script>
-  <script src="assets/js/grade-core-v6.js?v=20260813-v624"></script>
+  <script src="assets/js/grade-core-v6.js?v=20260813-v625"></script>
   <script src="assets/js/graph-store-v6.js?v=20260812-sec3"></script>
-  <script src="assets/js/tvbrasil-program-artworks.js?v=20260813-v624"></script>
-  <script src="assets/js/grade-app-v6.js?v=20260813-v624"></script>
+  <script src="assets/js/tvbrasil-program-artworks.js?v=20260813-v625"></script>
+  <script src="assets/js/grade-app-v6.js?v=20260813-v625"></script>
 </body>
 </html>
