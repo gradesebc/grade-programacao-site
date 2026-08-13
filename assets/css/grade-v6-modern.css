@@ -144,7 +144,12 @@ body.theme-dark .live-pill{background:rgba(9,22,43,.82);color:#ffe583;border-col
 .episode-list-details{margin-top:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-soft)}.episode-list-details>summary{min-height:48px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 12px;cursor:pointer;color:var(--ink)}.episode-list-details>summary::marker{color:var(--channel-primary)}.episode-list-count{color:var(--muted);font-size:.72rem;font-weight:750}.episode-list-details .episode-editor{max-height:min(46vh,520px);overflow:auto;padding:2px 10px 8px}.episode-list-details .add-episode{margin:0 10px 10px}.replace-current{display:grid;gap:3px;margin-bottom:14px;padding:13px 15px;border:1px solid color-mix(in srgb,var(--channel-primary) 25%,var(--line));border-radius:12px;background:var(--channel-soft)}.replace-current span,.replace-current small{color:var(--muted)}.replace-current strong{font-size:1rem}.replace-current small{font-size:.74rem}#replace-program{min-height:250px;padding:6px}#replace-program option{padding:9px 10px;border-radius:7px}
 body.theme-dark .episode-list-details{background:var(--surface-soft);border-color:var(--line)}body.theme-dark .replace-current{background:color-mix(in srgb,var(--channel-primary) 14%,var(--surface));border-color:var(--line)}
 
-.program-card,.catalog-row{isolation:isolate;overflow:hidden}.program-card>*{position:relative;z-index:2}.program-card.has-program-artwork::after,.catalog-list.view-cards .catalog-row.has-program-artwork::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background-image:linear-gradient(90deg,var(--program-bg,#fff) 0%,color-mix(in srgb,var(--program-bg,#fff) 74%,transparent) 52%,transparent 100%),var(--program-artwork);background-size:cover;background-position:center;opacity:var(--program-artwork-opacity,.14);mix-blend-mode:multiply}.program-card.has-program-artwork{background-color:var(--program-bg,#fff)}.catalog-list.view-cards .catalog-row.has-program-artwork>*{position:relative;z-index:2}.catalog-list:not(.view-cards) .catalog-row.has-program-artwork::after{display:none}body.theme-dark .program-card.has-program-artwork::after,body.theme-dark .catalog-list.view-cards .catalog-row.has-program-artwork::after{mix-blend-mode:soft-light;opacity:calc(var(--program-artwork-opacity,.14) * .82)}
+.program-card,.catalog-row{isolation:isolate;overflow:hidden}
+.program-card>*{position:relative;z-index:2}
+.program-card.has-program-artwork::after,.catalog-list.view-cards .catalog-row.has-program-artwork::after{content:"";position:absolute;inset:0;z-index:1;pointer-events:none}
+.program-card.has-program-artwork{background-color:var(--program-bg,#fff)}
+.catalog-list.view-cards .catalog-row.has-program-artwork>*{position:relative;z-index:2}
+.catalog-list:not(.view-cards) .catalog-row.has-program-artwork::after{display:none}
 .program-artwork-editor{margin-top:15px}.optional-label{display:inline-flex;margin-left:6px;padding:2px 7px;border-radius:999px;background:var(--channel-soft);color:var(--channel-primary);font-size:.62rem;vertical-align:middle}.program-artwork-layout{display:grid;grid-template-columns:minmax(190px,.75fr) minmax(280px,1.25fr);gap:16px;align-items:stretch}.program-artwork-preview-shell{position:relative;min-height:150px;display:grid;place-items:center;overflow:hidden;border:1px dashed color-mix(in srgb,var(--channel-primary) 35%,var(--line));border-radius:13px;background:var(--surface-soft);color:var(--muted);font-weight:750}.program-artwork-preview-shell img{width:100%;height:100%;min-height:150px;max-height:220px;object-fit:cover}.program-artwork-preview-shell img.artwork-removed{filter:grayscale(1);opacity:.22}.program-artwork-controls{display:grid;gap:10px;align-content:start}.program-artwork-controls input[type="range"]{min-height:32px;padding:0}.program-artwork-controls .muted{margin:0;font-size:.72rem}
 
 @media(max-width:700px){.version-entry-header{display:grid}.timeline-entry .version-window-label{justify-self:start}.version-change-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.version-type-details li{display:grid}.version-type-details li span{text-align:left}}
@@ -200,12 +205,23 @@ body.theme-dark .grade-sticky-zone{background:color-mix(in srgb,var(--canvas) 90
 .day-track.drag-hover{background-color:color-mix(in srgb,var(--channel-primary) 12%,var(--surface-soft));outline:2px dashed var(--channel-primary);outline-offset:-3px}
 .continuation-card{border-top-left-radius:3px;border-top-right-radius:3px}
 
-/* Imagens de fundo: leitura forte no claro e iluminacao controlada no escuro */
-.program-card.has-program-artwork::after,.catalog-list.view-cards .catalog-row.has-program-artwork::after{opacity:clamp(.05,calc(var(--program-artwork-opacity,.14) * 1.18),.82);mix-blend-mode:soft-light;filter:saturate(1.22) brightness(1.12);transition:opacity .2s ease,filter .2s ease}
-.program-card.has-program-artwork:hover::after,.program-card.has-program-artwork:focus-visible::after,.catalog-list.view-cards .catalog-row.has-program-artwork:hover::after{opacity:clamp(.12,calc(var(--program-artwork-opacity,.14) * 2.05),1);filter:saturate(1.35) brightness(1.22)}
+/* Imagens de fundo: cores reais, faixa de leitura e acabamento por tema */
+.program-card.has-program-artwork::after,.catalog-list.view-cards .catalog-row.has-program-artwork::after{
+  background-image:linear-gradient(90deg,color-mix(in srgb,var(--program-bg,#fff) 94%,transparent) 0%,color-mix(in srgb,var(--program-bg,#fff) 76%,transparent) 38%,color-mix(in srgb,var(--program-bg,#fff) 24%,transparent) 100%),var(--program-artwork);
+  background-size:100% 100%,cover;background-position:center,right center;background-repeat:no-repeat;
+  opacity:clamp(.05,var(--program-artwork-opacity,.14),.9);mix-blend-mode:normal;
+  filter:saturate(1.12) contrast(1.06) brightness(1.02);
+  transition:opacity .2s ease,filter .2s ease,transform .25s ease;transform:scale(1.01)
+}
+.program-card.has-program-artwork:not(.short-card) .program-copy{justify-self:start;max-width:100%;padding:3px 6px;border-radius:7px;background:color-mix(in srgb,var(--program-bg,#fff) 68%,transparent);box-shadow:0 1px 0 color-mix(in srgb,var(--program-text,#12203a) 12%,transparent);backdrop-filter:blur(2px)}
+.program-card.has-program-artwork .program-time,.program-card.has-program-artwork .program-badges{text-shadow:0 1px 2px color-mix(in srgb,var(--program-bg,#fff) 88%,transparent)}
+.program-card.has-program-artwork:hover::after,.program-card.has-program-artwork:focus-visible::after,.catalog-list.view-cards .catalog-row.has-program-artwork:hover::after{opacity:clamp(.12,calc(var(--program-artwork-opacity,.14) * 1.12),.98);filter:saturate(1.22) contrast(1.08) brightness(1.08);transform:scale(1.035)}
 body.theme-dark .header-channel-logo{background:rgba(12,27,52,.92);border-radius:9px;padding:5px 12px}
-body.theme-dark .program-card.has-program-artwork::after,body.theme-dark .catalog-list.view-cards .catalog-row.has-program-artwork::after{opacity:clamp(.08,calc(var(--program-artwork-opacity,.14) * 1.5),.9);mix-blend-mode:screen;filter:saturate(1.3) brightness(1.35)}
-body.theme-dark .program-card.has-program-artwork:hover::after,body.theme-dark .program-card.has-program-artwork:focus-visible::after,body.theme-dark .catalog-list.view-cards .catalog-row.has-program-artwork:hover::after{opacity:clamp(.16,calc(var(--program-artwork-opacity,.14) * 2.6),1);filter:saturate(1.45) brightness(1.6)}
+body.theme-dark .program-card.has-program-artwork::after,body.theme-dark .catalog-list.view-cards .catalog-row.has-program-artwork::after{
+  background-image:linear-gradient(90deg,color-mix(in srgb,var(--program-bg,var(--surface)) 96%,transparent) 0%,color-mix(in srgb,var(--program-bg,var(--surface)) 78%,transparent) 40%,color-mix(in srgb,#071326 20%,transparent) 100%),var(--program-artwork);
+  opacity:clamp(.06,var(--program-artwork-opacity,.14),.9);mix-blend-mode:normal;filter:saturate(1.08) contrast(1.1) brightness(.86)
+}
+body.theme-dark .program-card.has-program-artwork:hover::after,body.theme-dark .program-card.has-program-artwork:focus-visible::after,body.theme-dark .catalog-list.view-cards .catalog-row.has-program-artwork:hover::after{opacity:clamp(.14,calc(var(--program-artwork-opacity,.14) * 1.12),.98);filter:saturate(1.2) contrast(1.1) brightness(.98)}
 
 /* Catalogo: densidade menor sem retirar informacao */
 #page-catalog .metric{min-height:76px;padding:11px 14px}

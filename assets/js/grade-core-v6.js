@@ -235,7 +235,7 @@
     Object.keys(CHANNELS).forEach(id=>{next.channels[id]={...emptyChannel(),...(next.channels[id]||{})};});
     ['globalCatalog','imports','audit','backups'].forEach(k=>{if(!Array.isArray(next[k]))next[k]=[];});
     if(!Array.isArray(next.colorGroups))next.colorGroups=defaultColorGroups();
-    next.users=next.users||{};const incomingPreferences=next.preferences&&typeof next.preferences==='object'&&!Array.isArray(next.preferences)?next.preferences:{};next.preferences={...defaultPreferences(),...incomingPreferences};next.preferences.programArtworkEnabled=next.preferences.programArtworkEnabled!==false;next.preferences.programArtworkOpacity=Math.max(5,Math.min(60,+next.preferences.programArtworkOpacity||14));return next;
+    next.users=next.users||{};const incomingPreferences=next.preferences&&typeof next.preferences==='object'&&!Array.isArray(next.preferences)?next.preferences:{};next.preferences={...defaultPreferences(),...incomingPreferences};next.preferences.programArtworkEnabled=next.preferences.programArtworkEnabled!==false;next.preferences.programArtworkOpacity=Math.max(5,Math.min(90,+next.preferences.programArtworkOpacity||14));return next;
   }
   function normalizeRating(value){
     const text=String(value||'').trim();if(!text)return '';
@@ -355,7 +355,7 @@
   function savePreferences(changes={}){
     requireAdmin();assertSafeTree(changes,'Preferencias');const next={...defaultPreferences(),...(state.preferences||{})};
     if(Object.prototype.hasOwnProperty.call(changes,'programArtworkEnabled'))next.programArtworkEnabled=changes.programArtworkEnabled!==false;
-    if(Object.prototype.hasOwnProperty.call(changes,'programArtworkOpacity'))next.programArtworkOpacity=Math.max(5,Math.min(60,+changes.programArtworkOpacity||14));
+    if(Object.prototype.hasOwnProperty.call(changes,'programArtworkOpacity'))next.programArtworkOpacity=Math.max(5,Math.min(90,+changes.programArtworkOpacity||14));
     state.preferences=next;audit('Preferências de exibição atualizadas','Imagens '+(next.programArtworkEnabled?'ativadas':'desativadas')+' · opacidade '+next.programArtworkOpacity+'%','global');return clone(next);
   }
   function normalizeColor(value,fallback){const text=String(value||'').trim().toUpperCase();return /^#[0-9A-F]{6}$/.test(text)?text:fallback;}
@@ -671,7 +671,7 @@
     validateGlobalData(remote);
     state.globalCatalog=clone(remote.globalCatalog||[]);state.colorGroups=clone(remote.colorGroups||defaultColorGroups());state.imports=clone(remote.imports||[]).slice(0,100);state.audit=clone(remote.audit||[]).slice(0,600);
     state.users=Object.fromEntries(Object.entries(remote.users||{}).map(([email,profile])=>{const key=String(email||'').trim().toLowerCase(),role=profile?.role==='Administrador'?'Administrador':'Operador',channels=(profile?.channels||[]).filter(id=>CHANNELS[id]);return [key,{name:String(profile?.name||key),email:key,role,channels:role==='Administrador'?Object.keys(CHANNELS):channels}];}).filter(([email])=>email.includes('@')));
-    const remotePreferences=remote.preferences&&typeof remote.preferences==='object'&&!Array.isArray(remote.preferences)?remote.preferences:{};state.preferences={...defaultPreferences(),...clone(remotePreferences)};state.preferences.programArtworkEnabled=state.preferences.programArtworkEnabled!==false;state.preferences.programArtworkOpacity=Math.max(5,Math.min(60,+state.preferences.programArtworkOpacity||14));state.backups=clone(remote.backups||[]).slice(0,50);cachePut(stateCacheKey(),state);return true;
+    const remotePreferences=remote.preferences&&typeof remote.preferences==='object'&&!Array.isArray(remote.preferences)?remote.preferences:{};state.preferences={...defaultPreferences(),...clone(remotePreferences)};state.preferences.programArtworkEnabled=state.preferences.programArtworkEnabled!==false;state.preferences.programArtworkOpacity=Math.max(5,Math.min(90,+state.preferences.programArtworkOpacity||14));state.backups=clone(remote.backups||[]).slice(0,50);cachePut(stateCacheKey(),state);return true;
   }
   function mergeChannel(remote){if(!remote||+remote.schemaVersion!==VERSION||!CHANNELS[remote.channel])throw new Error('Arquivo de canal incompatível.');requireChannelAccess(remote.channel);state.channels[remote.channel]=validateChannelData(remote.data||{});gradeUndo.delete(remote.channel);cachePut(stateCacheKey(),state);return true;}
   function importLegacySnapshot(snapshot,channel=session.channel){

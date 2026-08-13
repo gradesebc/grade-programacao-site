@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta name="application-version" content="6.2.2">
+  <meta name="application-version" content="6.2.3">
   <meta name="application-release-date" content="13/08/2026">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://acessoainformacao.ebc.com.br https://balletparaisopolis.org.br https://curtatituloscdn-fhdpeyg2gjc2d5c6.z03.azurefd.net https://ebc.com.br https://i.ytimg.com https://imagens.ebc.com.br https://prodav3.ebc.com.br https://s2.glbimg.com https://tvbrasil.ebc.com.br https://tvbrasilinternacional.ebc.com.br https://upload.wikimedia.org https://www.docsp.com; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
   <title>Sistema de Grade - EBC</title>
-  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260813-v622">
-  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260813-v622">
+  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260813-v623">
+  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260813-v623">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -148,7 +148,7 @@
           <div class="panel-heading"><div><h3>Exibição e opacidade das imagens</h3><p class="muted">Ajuste a transparência das imagens de fundo automáticas nos cartões da grade e do catálogo.</p></div></div>
           <div class="form-grid" style="grid-template-columns:minmax(200px,1fr) auto;align-items:center;gap:16px;margin-top:12px">
             <label class="toggle"><input id="global-artwork-enabled" type="checkbox" checked> Exibir imagens de fundo dos programas<span class="helper">Desative para ocultar as imagens na grade e no catálogo sem apagar os arquivos.</span></label>
-            <label>Opacidade das imagens de fundo: <strong id="global-opacity-label">14%</strong><input id="global-artwork-opacity" type="range" min="5" max="60" step="1" value="14"><span class="helper">Altera a intensidade do fundo automático de todos os programas. No PDF, as imagens não são impressas.</span></label>
+            <label>Intensidade das imagens de fundo: <strong id="global-opacity-label">14%</strong><input id="global-artwork-opacity" type="range" min="5" max="90" step="1" value="14"><span class="helper">Ajuste entre 5% e 90%. As imagens recebem contraste próprio em cada tema e não são impressas no PDF.</span></label>
           </div>
         </article>
         <div class="cleanup-grid">
@@ -172,10 +172,10 @@
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   <div id="print-root" aria-hidden="true"></div>
   <script src="assets/vendor/xlsx.full.min.js?v=0.20.3"></script>
-  <script src="assets/js/microsoft-graph.bundle.js?v=20260813-v622"></script>
-  <script src="assets/js/grade-core-v6.js?v=20260813-v622"></script>
+  <script src="assets/js/microsoft-graph.bundle.js?v=20260813-v623"></script>
+  <script src="assets/js/grade-core-v6.js?v=20260813-v623"></script>
   <script src="assets/js/graph-store-v6.js?v=20260812-sec3"></script>
-  <script src="assets/js/tvbrasil-program-artworks.js?v=20260813-v622"></script>
-  <script src="assets/js/grade-app-v6.js?v=20260813-v622"></script>
+  <script src="assets/js/tvbrasil-program-artworks.js?v=20260813-v623"></script>
+  <script src="assets/js/grade-app-v6.js?v=20260813-v623"></script>
 </body>
 </html>
