@@ -30,7 +30,7 @@
     }
   },
   "globalHeaders": {
-    "Content-Security-Policy": "default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com; frame-ancestors 'none'; upgrade-insecure-requests",
+    "Content-Security-Policy": "default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.infomoney.com.br; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com; frame-ancestors 'none'; upgrade-insecure-requests",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
