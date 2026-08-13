@@ -5,10 +5,12 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
+  <meta name="application-version" content="6.1.0">
+  <meta name="application-release-date" content="13/08/2026">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://acessoainformacao.ebc.com.br https://balletparaisopolis.org.br https://curtatituloscdn-fhdpeyg2gjc2d5c6.z03.azurefd.net https://ebc.com.br https://i.ytimg.com https://imagens.ebc.com.br https://prodav3.ebc.com.br https://s2.glbimg.com https://tvbrasil.ebc.com.br https://tvbrasilinternacional.ebc.com.br https://www.docsp.com; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
   <title>Sistema de Grade - EBC</title>
-  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260812-pdf-space1">
-  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260812-pdf-space1">
+  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260813-v610">
+  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260813-v610">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -20,6 +22,7 @@
       <p class="muted">Entre com sua conta corporativa para acessar as grades compartilhadas.</p>
       <button id="login-button" class="button button-primary button-large" type="button"><span data-icon="microsoft"></span> Entrar com a Microsoft</button>
       <p id="login-status" class="helper" role="status">Autenticação segura pelo Microsoft Entra.</p>
+      <p class="app-version app-version-login" data-app-version>Versão 6.1.0 · 13/08/2026</p>
     </section>
   </div>
   <div id="channel-overlay" class="overlay hidden" aria-labelledby="channel-title">
@@ -48,6 +51,7 @@
         <p id="sync-detail">Aguardando conexão com o OneDrive.</p>
         <button id="sync-now" class="text-button" type="button"><span data-icon="cloud"></span><span class="sidebar-action-label">Sincronizar agora</span></button>
       </div>
+      <div class="sidebar-version" data-version-short="v6.1.0" title="Versão instalada: 6.1.0 · 13/08/2026"><span data-app-version>Versão 6.1.0 · 13/08/2026</span></div>
       <div class="sidebar-actions">
         <button id="switch-channel" class="button button-quiet" type="button"><span data-icon="switch"></span><span class="sidebar-action-label">Trocar canal</span></button>
         <button id="logout-button" class="button button-quiet" type="button"><span data-icon="logout"></span><span class="sidebar-action-label">Sair</span></button>
@@ -84,7 +88,22 @@
           <button id="clear-filters" class="text-button" type="button">Limpar filtros</button>
         </div>
         <div id="day-focus-bar" class="day-focus-bar no-print hidden"><button id="back-to-week" class="button button-secondary" type="button"><span data-icon="left"></span> Voltar à semana</button><div><p class="eyebrow">Dia em foco</p><strong id="focused-day-label">Dia</strong></div><div class="day-focus-actions"><button id="previous-day" class="icon-button" type="button" aria-label="Dia anterior"><span data-icon="left"></span></button><button id="next-day" class="icon-button" type="button" aria-label="Próximo dia"><span data-icon="right"></span></button></div></div>
+        <div class="time-shortcuts-bar no-print">
+          <span class="shortcuts-label">Ir para horário:</span>
+          <div class="shortcut-chips">
+            <button type="button" class="chip-time" data-time="06:00">06:00 <span>(Início)</span></button>
+            <button type="button" class="chip-time" data-time="09:00">09:00</button>
+            <button type="button" class="chip-time" data-time="12:00">12:00 <span>(Almoço)</span></button>
+            <button type="button" class="chip-time" data-time="15:00">15:00</button>
+            <button type="button" class="chip-time" data-time="18:00">18:00 <span>(Tarde)</span></button>
+            <button type="button" class="chip-time" data-time="20:00">20:00 <span>(Nobre)</span></button>
+            <button type="button" class="chip-time" data-time="22:00">22:00</button>
+            <button type="button" class="chip-time" data-time="00:00">00:00 <span>(Meia-Noite)</span></button>
+            <button type="button" class="chip-time" data-time="03:00">03:00 <span>(Madrugada)</span></button>
+          </div>
+        </div>
         <div id="schedule-board" class="schedule-board" aria-live="polite"></div>
+        <div id="slot-hover-tooltip" class="slot-hover-tooltip"></div>
       </section>
       <section id="page-catalog" class="page" aria-labelledby="catalog-title">
         <div class="page-heading"><div><p class="eyebrow">Base de conteúdos</p><h2 id="catalog-title">Programas e episódios</h2><p class="muted">Catálogo global combinado com os programas exclusivos deste canal.</p></div><div class="button-row catalog-heading-actions"><button id="color-groups" class="button button-secondary" type="button"><span data-icon="palette"></span> Cores dos programas</button><button id="new-program" class="button button-primary" type="button"><span data-icon="plus"></span> Novo programa</button></div></div>
@@ -114,9 +133,20 @@
       <section id="page-admin" class="page" aria-labelledby="admin-title">
         <div class="page-heading"><div><p class="eyebrow">Área controlada</p><h2 id="admin-title">Administração e limpeza</h2><p class="muted">Toda limpeza cria uma cópia de segurança antes de alterar os dados.</p></div></div>
         <div id="permission-notice" class="notice"></div>
+        <article class="panel release-panel">
+          <div><p class="eyebrow">Identificação do sistema</p><h3>Versão instalada</h3><p class="muted">Informe este número ao relatar uma dúvida, correção ou diferença entre computadores.</p></div>
+          <strong class="release-badge" data-app-version>Versão 6.1.0 · 13/08/2026</strong>
+        </article>
         <article class="panel admin-users-panel">
           <div class="panel-heading"><div><h3>Usuários e permissões</h3><p class="muted">Administradores acessam todos os canais; operadores recebem apenas os canais indicados.</p></div><button id="new-user-profile" class="button button-secondary" type="button"><span data-icon="plus"></span> Adicionar usuário</button></div>
           <div id="user-profile-list" class="timeline-list"></div>
+        </article>
+        <article class="panel admin-opacity-panel" style="margin-top:20px">
+          <div class="panel-heading"><div><h3>Exibição e opacidade das imagens</h3><p class="muted">Ajuste a transparência das imagens de fundo automáticas nos cartões da grade e do catálogo.</p></div></div>
+          <div class="form-grid" style="grid-template-columns:minmax(200px,1fr) auto;align-items:center;gap:16px;margin-top:12px">
+            <label class="toggle"><input id="global-artwork-enabled" type="checkbox" checked> Exibir imagens de fundo dos programas<span class="helper">Desative para ocultar as imagens na grade e no catálogo sem apagar os arquivos.</span></label>
+            <label>Opacidade das imagens de fundo: <strong id="global-opacity-label">14%</strong><input id="global-artwork-opacity" type="range" min="5" max="35" step="1" value="14"><span class="helper">Altera a transparência do fundo automático de todos os programas.</span></label>
+          </div>
         </article>
         <div class="cleanup-grid">
           <article class="danger-card warning"><span data-icon="calendar"></span><h3>Limpar esta semana</h3><p>Remove as ocorrências visíveis e cria exceções nas regras recorrentes.</p><strong id="cleanup-week-count">0 itens</strong><button data-cleanup="week" class="button button-warning" type="button">Revisar limpeza</button></article>
@@ -139,9 +169,10 @@
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   <div id="print-root" aria-hidden="true"></div>
   <script src="assets/vendor/xlsx.full.min.js?v=0.20.3"></script>
-  <script src="assets/js/microsoft-graph.bundle.js?v=20260812-pdf-space1"></script>
-  <script src="assets/js/grade-core-v6.js?v=20260812-pdf-space1"></script>
+  <script src="assets/js/microsoft-graph.bundle.js?v=20260813-v610"></script>
+  <script src="assets/js/grade-core-v6.js?v=20260813-v610"></script>
   <script src="assets/js/graph-store-v6.js?v=20260812-sec3"></script>
-  <script src="assets/js/grade-app-v6.js?v=20260812-pdf-space1"></script>
+  <script src="assets/js/tvbrasil-program-artworks.js?v=20260813-v610"></script>
+  <script src="assets/js/grade-app-v6.js?v=20260813-v610"></script>
 </body>
 </html>
