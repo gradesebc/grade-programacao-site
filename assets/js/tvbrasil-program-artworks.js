@@ -8,8 +8,8 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   "A ALMA QUER VOAR": {
     "title": "A ALMA QUER VOAR",
     "page_url": "https://www.ebc.com.br/imprensa/2026/filmes-da-tv-brasil-de-06-a-12-07.2026",
-    "image_url": "https://ebc.com.br/imprensa/2026/email-a-alma-quer-voar-03-credito-divulgacao-tv-brasil.png/@@images/c38d5ce0-1580-48c4-bfa9-567821db35b1.png",
-    "method": "web_verified_ebc_imprensa"
+    "image_url": "https://m.media-amazon.com/images/S/pv-target-images/e64a06610a4a5c7bdf1050e3ab80651e110dd2fb889fa447ee88498751509597.png",
+    "method": "user_supplied"
   },
   "A MISTERIOSA MORTE DE PÉROLA": {
     "title": "A MISTERIOSA MORTE DE PÉROLA",
@@ -32,8 +32,8 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   "A TRANSFORMAÇÃO DE CANUTO": {
     "title": "A TRANSFORMAÇÃO DE CANUTO",
     "page_url": null,
-    "image_url": null,
-    "method": "not_found"
+    "image_url": "https://i.ytimg.com/vi/isnyNfWA0hw/maxresdefault.jpg",
+    "method": "user_supplied"
   },
   "ABDIAS NASCIMENTO": {
     "title": "ABDIAS NASCIMENTO",
@@ -43,9 +43,9 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   },
   "AFIADAS": {
     "title": "AFIADAS",
-    "page_url": "https://www.ebc.com.br/imprensa/2026/vida-alem-do-trabalho-e-tema-do-episodio-de-afiadas-que-a-tv-brasil-leva-ao-ar-nesta-sexta-feira-24",
-    "image_url": "https://ebc.com.br/imprensa/2026/vida-alem-do-trabalho-e-tema-do-episodio-de-afiadas-que-a-tv-brasil-leva-ao-ar-nesta-sexta-feira-24/@@images/image/large",
-    "method": "web_verified_ebc_imprensa"
+    "page_url": "https://ebc.com.br/imprensa/2026/ultimo-capitulo-de-afiadas-aborda-violencia-digital-e-exposicao-sem-consentimento/",
+    "image_url": "https://ebc.com.br/imprensa/2026/ultimo-capitulo-de-afiadas-aborda-violencia-digital-e-exposicao-sem-consentimento/@@images/image/large",
+    "method": "user_supplied_ebc"
   },
   "AGENDA ESG": {
     "title": "AGENDA ESG",
@@ -79,9 +79,9 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   },
   "AMOR REBELDE": {
     "title": "AMOR REBELDE",
-    "page_url": "https://www.ebc.com.br/imprensa/2026/filmes-da-tv-brasil-de-06-a-12-07.2026",
-    "image_url": "https://ebc.com.br/imprensa/2026/email-amor-rebelde-03-credito-divulgacao-tv-brasil.png/@@images/c65cc664-24be-4b64-9dc8-97f61230c710.png",
-    "method": "web_verified_ebc_imprensa"
+    "page_url": "https://ebc.com.br/imprensa/2026/tv-brasil-exibe-os-longas-ineditos-amor-rebelde-e-como-vivem-os-bravos-neste-domingo/",
+    "image_url": "https://ebc.com.br/imprensa/2026/tv-brasil-exibe-os-longas-ineditos-amor-rebelde-e-como-vivem-os-bravos-neste-domingo/@@images/image/large",
+    "method": "user_supplied_ebc"
   },
   "AO AROMA DO CAFÉ": {
     "title": "AO AROMA DO CAFÉ",
@@ -91,9 +91,9 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   },
   "ARTES DA MEMÓRIA": {
     "title": "ARTES DA MEMÓRIA",
-    "page_url": "https://www.ebc.com.br/imprensa/2026/filmes-da-tv-brasil-de-08-a-14-06.2026",
-    "image_url": "https://ebc.com.br/imprensa/2026/email-artes-da-memoria-01-divulgacao-tv-brasil-2.png/@@images/51fc075a-91d5-4967-a7b6-cf00e20b6ffb.png",
-    "method": "web_verified_ebc_imprensa"
+    "page_url": null,
+    "image_url": "https://www.jornalocandeeiro.com.br/painel/app/images/blogCapa/52930/Card%20Irdeb.jpg",
+    "method": "user_supplied"
   },
   "ARTISTAS PLÁSTICOS BRASILEIROS": {
     "title": "ARTISTAS PLÁSTICOS BRASILEIROS",
@@ -104,8 +104,8 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   "ARÁBIA": {
     "title": "ARÁBIA",
     "page_url": "https://www.ebc.com.br/imprensa/2026/filmes-da-tv-brasil-de-27-07-a-02-08.2026",
-    "image_url": "https://ebc.com.br/imprensa/2026/email-arabia-02-credito-divulgacao-tv-brasil.jpg/@@images/33909716-d165-49a8-80da-f4905d1d05d7.jpeg",
-    "method": "web_verified_ebc_imprensa"
+    "image_url": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcStjAQ2TZLiUPg3XMU5ZCGwUfyVPGr_N63_qtrkB0C4cvtONczpJxeneOc3&s=10",
+    "method": "user_supplied"
   },
   "AS CORES DO DIVINO": {
     "title": "AS CORES DO DIVINO",
@@ -116,14 +116,14 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   "AS MICROAVENTURAS DE TITO E MUDA": {
     "title": "AS MICROAVENTURAS DE TITO E MUDA",
     "page_url": null,
-    "image_url": null,
-    "method": "not_found"
+    "image_url": "https://imagens.ebc.com.br/vppYyijXk0BEI2VHSljIjph-nkY=/1140x560/smart/https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/tito_e_muda_banner2.jpg",
+    "method": "user_supplied_ebc"
   },
   "AYRTON: RETRATOS E MEMÓRIAS": {
     "title": "AYRTON: RETRATOS E MEMÓRIAS",
     "page_url": null,
-    "image_url": null,
-    "method": "not_found"
+    "image_url": "https://m.media-amazon.com/images/S/pv-target-images/826ab581b45dc60c7cb9ece7ef812a572282f61e82163434075eb7c8c3dfc6b4.jpg",
+    "method": "user_supplied"
   },
   "BANDIDO DA LUZ VERMELHA": {
     "title": "BANDIDO DA LUZ VERMELHA",
@@ -140,8 +140,8 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   "BELA RAÍZES": {
     "title": "BELA RAÍZES",
     "page_url": null,
-    "image_url": null,
-    "method": "not_found"
+    "image_url": "https://m.media-amazon.com/images/S/pv-target-images/f85855d737cef762257ceb7c753c7599d331bc1a0b3ebf7a35d53ba4fd75b7c7.jpg",
+    "method": "user_supplied"
   },
   "BERNARDO SAYÃO E A ESTRADA PARA BELÉM": {
     "title": "BERNARDO SAYÃO E A ESTRADA PARA BELÉM",
@@ -212,8 +212,8 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   "BRASIL VISTO DO ALTO": {
     "title": "BRASIL VISTO DO ALTO",
     "page_url": null,
-    "image_url": null,
-    "method": "not_found"
+    "image_url": "https://preview.redd.it/brasil-visto-de-cima-%C3%A9-o-melhor-programa-da-tv-brasileira-e-v0-hdtl1dnebspa1.png?width=830&format=png&auto=webp&s=6b4065eb86bc0812e913f193d6c3ccb1137167df",
+    "method": "user_supplied"
   },
   "BRASÍLIA": {
     "title": "BRASÍLIA",
@@ -266,8 +266,8 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   "CHE, MEMÓRIAS DE UM ANO SECRETO": {
     "title": "CHE, MEMÓRIAS DE UM ANO SECRETO",
     "page_url": null,
-    "image_url": null,
-    "method": "not_found"
+    "image_url": "https://www.papodecinema.com.br/wp-content/uploads/2017/08/20180810-01-che-memorias-de-um-ano-secreto-papo-de-cinema.webp",
+    "method": "user_supplied"
   },
   "CHIBO": {
     "title": "CHIBO",
@@ -1324,6 +1324,12 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
     "page_url": "https://tvbrasil.ebc.com.br/eleicoes-2024",
     "image_url": "https://upload.wikimedia.org/wikipedia/commons/0/05/Flag_of_Brazil.svg",
     "method": "web_verified_tvbrasil_wikimedia_public_domain"
+  },
+  "ELEITORAL": {
+    "title": "ELEITORAL",
+    "page_url": null,
+    "image_url": "https://media.gazetadopovo.com.br/2021/03/03175931/50514832812_fb4f44c2c4_k.jpg",
+    "method": "user_supplied"
   },
   "ÚLTIMA CIDADE": {
     "title": "ÚLTIMA CIDADE",
