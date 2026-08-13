@@ -374,23 +374,35 @@
     const sequence=episodeSequence(program,rule.selectedSeasons||[]);const cycles=Math.max(1,+rule.cycles||1);const limit=sequence.length?sequence.length*cycles:Infinity;
     if(rule.endMode==='cycles'&&index>=limit)return null;if(rule.endsAt&&date>rule.endsAt)return null;
     const episode=sequence.length?sequence[index%sequence.length]:null;const number=episode?.number||(rule.continuous!==false?(+rule.startEpisode||1)+index:'');
-    return {id:'gen_'+rule.id+'_'+date,ruleId:rule.id,channel:rule.channel,date,start:rule.start,duration:+rule.duration||program?.defaultDuration||30,programId:rule.programId,title:rule.title||program?.title||'Programa',season:episode?.season||rule.season||'',episodeId:episode?.id||'',episodeNumber:number,episodeTitle:episode?.title||'',type:rule.type||program?.type||'recorded',origin:rule.origin||program?.origin||'licensed',category:rule.category||program?.category||'',isRerun:false,source:'rule'};
+    return {id:'gen_'+rule.id+'_'+date,ruleId:rule.id,channel:rule.channel,date,occurrenceDate:date,occurrenceKind:'primary',start:rule.start,duration:+rule.duration||program?.defaultDuration||30,programId:rule.programId,title:rule.title||program?.title||'Programa',season:episode?.season||rule.season||'',episodeId:episode?.id||'',episodeNumber:number,episodeTitle:episode?.title||'',type:rule.type||program?.type||'recorded',origin:rule.origin||program?.origin||'licensed',category:rule.category||program?.category||'',isRerun:false,source:'rule'};
+  }
+  function occurrenceAnchorDate(item){return item?.occurrenceDate||item?.date||'';}
+  function occurrenceKind(item){return item?.occurrenceKind||(item?.isRerun?'rerun':'primary');}
+  function sameOccurrence(a,b){
+    if(!a||!b)return false;if((a.source==='manual'||a.source==='migration'||!a.ruleId)&&(b.source==='manual'||b.source==='migration'||!b.ruleId))return !!a.id&&a.id===b.id;
+    return !!a.ruleId&&a.ruleId===b.ruleId&&occurrenceAnchorDate(a)===occurrenceAnchorDate(b)&&occurrenceKind(a)===occurrenceKind(b);
   }
   function applyException(item,exceptions){
-    const ex=exceptions.find(e=>e.ruleId===item.ruleId&&e.date===item.date&&(!e.occurrenceKind||e.occurrenceKind===(item.isRerun?'rerun':'primary')));
-    if(!ex)return item;if(ex.action==='cancel')return null;return {...item,...clone(ex.changes||{}),id:item.id+'_exception',exceptionId:ex.id};
+    const anchor=occurrenceAnchorDate(item),kind=occurrenceKind(item),ex=[...(exceptions||[])].reverse().find(e=>e.ruleId===item.ruleId&&e.date===anchor&&(!e.occurrenceKind||e.occurrenceKind===kind));
+    if(!ex)return item;if(ex.action==='cancel')return null;return {...item,...clone(ex.changes||{}),occurrenceDate:anchor,occurrenceKind:kind,id:item.id+'_exception',exceptionId:ex.id};
+  }
+  function upsertOccurrenceException(item,action,changes={}){
+    const channel=currentChannel(),anchor=occurrenceAnchorDate(item),kind=occurrenceKind(item);let ex=item.exceptionId&&channel.exceptions.find(entry=>entry.id===item.exceptionId);
+    if(!ex)ex=[...channel.exceptions].reverse().find(entry=>entry.ruleId===item.ruleId&&entry.date===anchor&&(!entry.occurrenceKind||entry.occurrenceKind===kind));
+    if(ex){ex.action=action;ex.changes=action==='change'?clone(changes):{};ex.date=anchor;ex.occurrenceKind=kind;return ex;}
+    ex={id:uid('exception'),ruleId:item.ruleId,date:anchor,occurrenceKind:kind,action};if(action==='change')ex.changes=clone(changes);channel.exceptions.push(ex);return ex;
   }
   function getOccurrences(channelId,from,to){
     requireChannelAccess(channelId);
     const channel=state.channels[channelId]||emptyChannel();const catalogMap=new Map(getCatalog().map(p=>[p.id,p]));const result=channel.occurrences.filter(o=>o.date>=from&&o.date<=to).map(clone);
     channel.rules.filter(r=>r.active!==false&&r.startsAt<=to&&(!r.endsAt||r.endsAt>=from)).forEach(rule=>{
-      const program=catalogMap.get(rule.programId);const dates=primaryDatesUntil(rule,to);
+      const program=catalogMap.get(rule.programId),movedAnchors=channel.exceptions.filter(ex=>ex.ruleId===rule.id&&ex.action==='change'&&ex.changes?.date>=from&&ex.changes?.date<=to).map(ex=>ex.date).filter(Boolean),generationTo=[to,...movedAnchors].sort().at(-1),dates=primaryDatesUntil(rule,generationTo);
       dates.forEach((date,index)=>{
-        if(date<from||skipped(channel,date))return;let primary=ruleOccurrence(rule,date,index,program);if(!primary)return;primary=applyException(primary,channel.exceptions);if(primary)result.push(primary);
+        if(skipped(channel,date))return;const basePrimary=ruleOccurrence(rule,date,index,program);if(!basePrimary)return;const primary=applyException(basePrimary,channel.exceptions);if(primary&&primary.date>=from&&primary.date<=to)result.push(primary);
         (rule.reruns||[]).forEach((rerun,rIndex)=>{
-          const rerunDate=isoDate(addDays(date,+rerun.dayOffset||0));if(rerunDate<from||rerunDate>to||skipped(channel,rerunDate))return;
-          let copy={...primary,id:'gen_'+rule.id+'_'+date+'_rerun_'+rIndex,date:rerunDate,start:rerun.start||primary.start,type:'rerun',category:'Reprise',isRerun:true,originalDate:date,occurrenceKind:'rerun'};
-          copy=applyException(copy,channel.exceptions);if(copy)result.push(copy);
+          const rerunDate=isoDate(addDays(date,+rerun.dayOffset||0));if(skipped(channel,rerunDate))return;
+          let copy={...basePrimary,id:'gen_'+rule.id+'_'+date+'_rerun_'+rIndex,date:rerunDate,occurrenceDate:rerunDate,start:rerun.start||basePrimary.start,type:'rerun',category:'Reprise',isRerun:true,originalDate:date,occurrenceKind:'rerun'};
+          copy=applyException(copy,channel.exceptions);if(copy&&copy.date>=from&&copy.date<=to)result.push(copy);
         });
       });
     });
@@ -417,16 +429,13 @@
     requireChannelAccess();
     assertSafeTree(item,'Exibicao');if(!/^\d{4}-\d{2}-\d{2}$/.test(String(item?.date||''))||!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(item?.start||'')))throw new Error('A data ou o horario da exibicao e invalido.');
     const occurrence={...clone(item),title:String(item.title||'Programa').trim().slice(0,300),duration:Math.max(1,Math.min(1440,+item.duration||30)),id:item.id||uid('event'),channel:session.channel,source:item.source||'manual'};const list=currentChannel().occurrences;const index=list.findIndex(o=>o.id===occurrence.id);if(index<0&&list.length>=LIMITS.occurrences)throw new Error('O canal atingiu o limite de exibicoes manuais.');
-    const others=getOccurrences(session.channel,occurrence.date,occurrence.date).filter(o=>o.id!==occurrence.id);
+    const others=getOccurrences(session.channel,isoDate(addDays(occurrence.date,-1)),isoDate(addDays(occurrence.date,1))).filter(o=>!sameOccurrence(o,occurrence));
     if(conflicts([...others,occurrence]).length)throw new Error('Já existe um programa ocupando esse horário.');
     if(index>=0)list[index]=occurrence;else list.push(occurrence);audit(index>=0?'Exibição atualizada':'Exibição adicionada',occurrence.title);return occurrence;
   }
   function validateOccurrenceMove(item,changes){
     const candidate={...clone(item),...clone(changes),id:item.id,date:changes.date||item.date,start:changes.start||item.start,duration:Math.max(1,Math.min(1440,+changes.duration||item.duration||30))};
-    const others=getOccurrences(session.channel,candidate.date,candidate.date).filter(other=>{
-      if(other.id===candidate.id)return false;
-      return !(item.ruleId&&other.ruleId===item.ruleId&&other.date===item.date&&other.start===item.start&&!!other.isRerun===!!item.isRerun&&String(other.episodeId||'')===String(item.episodeId||''));
-    });
+    const others=getOccurrences(session.channel,isoDate(addDays(candidate.date,-1)),isoDate(addDays(candidate.date,1))).filter(other=>!sameOccurrence(other,item));
     if(conflicts([...others,candidate]).some(conflict=>conflict.a===candidate||conflict.b===candidate))throw new Error('Conflito de horário: escolha um espaço livre antes de mover o programa.');
   }
   function changeOccurrence(item,changes,scope='one'){
@@ -436,17 +445,17 @@
     if(needsException&&currentChannel().exceptions.length+(scope==='week'?7:1)>LIMITS.exceptions)throw new Error('O canal atingiu o limite de excecoes.');
     if(scope==='one')validateOccurrenceMove(item,changes);
     if(item.source==='manual'||item.source==='migration')return saveOccurrence({...item,...changes});
-    if(scope==='future'){const rule=currentChannel().rules.find(r=>r.id===item.ruleId);if(rule){Object.assign(rule,changes,{startsAt:item.date});audit('Regra alterada a partir de '+formatDate(item.date),item.title);return rule;}}
+    if(scope==='future'){const anchor=occurrenceAnchorDate(item),rule=currentChannel().rules.find(r=>r.id===item.ruleId);if(rule){Object.assign(rule,changes,{startsAt:anchor});audit('Regra alterada a partir de '+formatDate(anchor),item.title);return rule;}}
     if(scope==='week'){const week=isoDate(startOfWeek(item.date));DAYS.forEach((_,i)=>{const date=isoDate(addDays(week,i));currentChannel().exceptions.push({id:uid('exception'),ruleId:item.ruleId,date,action:'change',changes:clone(changes)});});}
-    else currentChannel().exceptions.push({id:uid('exception'),ruleId:item.ruleId,date:item.date,occurrenceKind:item.isRerun?'rerun':'primary',action:'change',changes:clone(changes)});
+    else upsertOccurrenceException(item,'change',changes);
     audit('Exibição excepcional alterada',item.title);return true;
   }
   function cancelOccurrence(item,scope='one'){
     requireChannelAccess();
     if(item.source!=='manual'&&item.source!=='migration'&&scope!=='future'&&currentChannel().exceptions.length>=LIMITS.exceptions)throw new Error('O canal atingiu o limite de excecoes.');
     if(item.source==='manual'||item.source==='migration'){const list=currentChannel().occurrences;const i=list.findIndex(o=>o.id===item.id);if(i>=0)list.splice(i,1);}
-    else if(scope==='future'){const rule=currentChannel().rules.find(r=>r.id===item.ruleId);if(rule)rule.endsAt=isoDate(addDays(item.date,-1));}
-    else currentChannel().exceptions.push({id:uid('exception'),ruleId:item.ruleId,date:item.date,occurrenceKind:item.isRerun?'rerun':'primary',action:'cancel'});
+    else if(scope==='future'){const rule=currentChannel().rules.find(r=>r.id===item.ruleId);if(rule)rule.endsAt=isoDate(addDays(occurrenceAnchorDate(item),-1));}
+    else upsertOccurrenceException(item,'cancel');
     audit('Exibição cancelada',item.title);return true;
   }
   function getAlerts(){

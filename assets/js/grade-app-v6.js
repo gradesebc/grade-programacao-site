@@ -167,15 +167,48 @@
     const focus=$('#day-focus-bar');focus.classList.toggle('hidden',ui.view!=='day');if(ui.view==='day'){$('#focused-day-label').textContent=C().DAYS[ui.day]+' · '+C().formatDate(C().addDays(start,ui.day),{day:'2-digit',month:'long',year:'numeric'});$('#page-title').textContent='Grade do dia';}else $('#page-title').textContent='Grade semanal';updateNowIndicators();applyCardFilters();updateGradeSticky();
   }
   function programCard(item,segment={startOp:C().opMinutes(item.start),duration:Math.max(15,+item.duration||30),continuation:false},conflictIds=new Set()){
-    const button=document.createElement('button'),duration=segment.duration,realEnd=C().timeFromMinutes(C().minutes(item.start)+Math.max(15,+item.duration||30)),displayStart=segment.continuation?'06:00':item.start;button.type='button';button.draggable=true;button.className='program-card '+cardClass(item)+(duration<=15?' short-card':duration<=30?' medium-card':'')+(conflictIds.has(item.id)?' conflict':'')+(segment.continuation?' continuation-card':'');button.style.top='calc('+segment.startOp+' * var(--minute))';button.style.height='calc('+duration+' * var(--minute) - 3px)';button.dataset.search=C().normalize([item.title,item.episodeTitle,item.category].join(' '));button._item=item;button.addEventListener('dragstart',e=>{e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('application/json',JSON.stringify(item));button.classList.add('dragging');});button.addEventListener('dragend',()=>button.classList.remove('dragging'));
-    const episode=item.episodeNumber||item.episodeTitle?'<span class="program-episode">'+esc(item.season?'T'+item.season+' · ':'')+(item.episodeNumber?'EP '+esc(item.episodeNumber):'')+(item.episodeTitle?' · '+esc(item.episodeTitle):'')+'</span>':'<span class="program-episode">'+esc(item.category||originLabel(item.origin))+'</span>',badges=(item.type==='live'?'<span class="live-pill">AO VIVO</span>':'')+(item.isRerun?'<span class="card-badge">REPRISE</span>':'')+(conflictIds.has(item.id)?'<span class="card-badge conflict-badge">CONFLITO</span>':'');button.innerHTML='<span class="program-time"><b>'+esc(displayStart)+'</b><span>'+esc(realEnd)+'</span></span><span class="program-copy"><strong class="program-title">'+esc(item.title)+'</strong>'+episode+'</span><span class="program-badges">'+badges+'</span>';button.setAttribute('aria-label',displayStart+' a '+realEnd+', '+item.title);button.addEventListener('click',()=>openOccurrenceDrawer(item));button.addEventListener('contextmenu',event=>{event.preventDefault();openReplaceOccurrence(item);});applyProgramColor(button,item);queueArtwork(button,item);return button;
+    const button=document.createElement('button'),duration=segment.duration,originalDuration=Math.max(15,+item.duration||30),realEnd=C().timeFromMinutes(C().minutes(item.start)+originalDuration),displayStart=segment.continuation?'06:00':item.start;
+    let resizing=false,nextDuration=originalDuration,suppressClick=false;
+    button.type='button';button.draggable=true;button.className='program-card '+cardClass(item)+(duration<=15?' short-card':duration<=30?' medium-card':'')+(conflictIds.has(item.id)?' conflict':'')+(segment.continuation?' continuation-card':'');button.style.top='calc('+segment.startOp+' * var(--minute))';button.style.height='calc('+duration+' * var(--minute) - 3px)';button.dataset.search=C().normalize([item.title,item.episodeTitle,item.category].join(' '));button._item=item;
+    button.addEventListener('dragstart',e=>{if(resizing){e.preventDefault();return;}e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('application/json',JSON.stringify(item));button.classList.add('dragging');});
+    button.addEventListener('dragend',()=>button.classList.remove('dragging'));
+    const episode=item.episodeNumber||item.episodeTitle?'<span class="program-episode">'+esc(item.season?'T'+item.season+' · ':'')+(item.episodeNumber?'EP '+esc(item.episodeNumber):'')+(item.episodeTitle?' · '+esc(item.episodeTitle):'')+'</span>':'<span class="program-episode">'+esc(item.category||originLabel(item.origin))+'</span>',badges=(item.type==='live'?'<span class="live-pill">AO VIVO</span>':'')+(item.isRerun?'<span class="card-badge">REPRISE</span>':'')+(conflictIds.has(item.id)?'<span class="card-badge conflict-badge">CONFLITO</span>':'');
+    button.innerHTML='<span class="program-time"><b>'+esc(displayStart)+'</b><span>'+esc(realEnd)+'</span></span><span class="program-copy"><strong class="program-title">'+esc(item.title)+'</strong>'+episode+'</span><span class="program-badges">'+badges+'</span><span class="program-resize-grip" aria-hidden="true"></span>';
+    button.setAttribute('aria-label',displayStart+' a '+realEnd+', '+item.title+'. Arraste para mover; use a alça inferior para ajustar a duração.');
+    button.addEventListener('pointerdown',event=>{
+      if(!event.target.closest('.program-resize-grip')||event.button!==0)return;
+      event.preventDefault();event.stopPropagation();resizing=true;suppressClick=true;button.draggable=false;button.classList.add('resizing');
+      const startY=event.clientY,startSegmentDuration=duration,minutePx=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--minute'))||1.6,pointerId=event.pointerId;
+      button.setPointerCapture?.(pointerId);
+      const onMove=moveEvent=>{
+        const delta=Math.round((moveEvent.clientY-startY)/minutePx/15)*15;
+        nextDuration=Math.max(15,Math.min(1440,originalDuration+delta));
+        const previewDuration=Math.max(15,startSegmentDuration+(nextDuration-originalDuration));
+        button.style.height='calc('+previewDuration+' * var(--minute) - 3px)';
+        button.dataset.resizeMinutes=String(nextDuration);
+      };
+      const finish=()=>{
+        button.removeEventListener('pointermove',onMove);button.removeEventListener('pointerup',finish);button.removeEventListener('pointercancel',cancel);
+        try{button.releasePointerCapture?.(pointerId);}catch(_){}
+        resizing=false;button.draggable=true;button.classList.remove('resizing');delete button.dataset.resizeMinutes;
+        if(nextDuration!==originalDuration){
+          try{C().changeOccurrence(item,{duration:nextDuration},'one');renderAll();toast('Duração ajustada para '+nextDuration+' minutos.','success');}
+          catch(err){renderAll();toast(err.message,'error');}
+        }else button.style.height='calc('+duration+' * var(--minute) - 3px)';
+        setTimeout(()=>{suppressClick=false;},0);
+      };
+      const cancel=()=>{nextDuration=originalDuration;finish();};
+      button.addEventListener('pointermove',onMove);button.addEventListener('pointerup',finish);button.addEventListener('pointercancel',cancel);
+    });
+    button.addEventListener('click',event=>{if(suppressClick){event.preventDefault();event.stopPropagation();return;}openOccurrenceDrawer(item);});
+    button.addEventListener('contextmenu',event=>{event.preventDefault();openReplaceOccurrence(item);});applyProgramColor(button,item);queueArtwork(button,item);return button;
   }
   function updateNowIndicators(){
     $$('.now-line').forEach(el=>el.remove());const now=new Date(),realMinutes=now.getHours()*60+now.getMinutes(),today=C().isoDate(now),operationalDate=realMinutes<360?C().isoDate(C().addDays(today,-1)):today,track=$('.day-track[data-date="'+operationalDate+'"]');$$('.schedule-board .program-card').forEach(card=>{const item=card._item,start=C().opMinutes(item.start),opNow=(realMinutes-360+1440)%1440;card.classList.toggle('current',item.date===operationalDate&&opNow>=start&&opNow<start+(+item.duration||30));});if(!track)return;const opNow=(realMinutes-360+1440)%1440,line=document.createElement('div');line.className='now-line';line.style.top='calc('+opNow+' * var(--minute))';line.innerHTML='<span class="now-label">AGORA</span>';track.append(line);
   }
   function openOccurrenceDrawer(item){
     $('#drawer-kicker').textContent=item.isRerun?'Reprise':(item.type==='live'?'Ao vivo':'Exibição');$('#drawer-title').textContent=item.title;
-    $('#drawer-content').innerHTML='<div class="metric-grid"><div class="metric"><span>Data</span><strong style="font-size:1.1rem">'+C().formatDate(item.date)+'</strong></div><div class="metric"><span>Horário</span><strong style="font-size:1.1rem">'+esc(item.start)+'</strong></div></div><p><strong>Duração:</strong> '+esc(item.duration)+' minutos</p>'+(item.episodeNumber||item.episodeTitle?'<p><strong>Episódio:</strong> '+esc(item.episodeNumber||'')+' '+esc(item.episodeTitle||'')+'</p>':'')+'<p><strong>Classificação:</strong> '+esc(item.category||item.origin||'Não definida')+'</p><div class="button-row"><button id="drawer-replace" class="button button-secondary" type="button">Substituir programa</button><button id="drawer-dup" class="button button-secondary" type="button"><span data-icon="plus"></span> Duplicar para amanhã (+24h)</button><button id="drawer-edit" class="button button-primary" type="button">Editar ocorrência</button><button id="drawer-delete" class="button button-danger" type="button">Cancelar exibição</button></div>';
+    $('#drawer-content').innerHTML='<div class="metric-grid"><div class="metric"><span>Data</span><strong style="font-size:1.1rem">'+C().formatDate(item.date)+'</strong></div><div class="metric"><span>Horário</span><strong style="font-size:1.1rem">'+esc(item.start)+'</strong></div></div><p><strong>Duração:</strong> '+esc(item.duration)+' minutos</p>'+(item.episodeNumber||item.episodeTitle?'<p><strong>Episódio:</strong> '+esc(item.episodeNumber||'')+' '+esc(item.episodeTitle||'')+'</p>':'')+'<p><strong>Classificação:</strong> '+esc(item.category||item.origin||'Não definida')+'</p><div class="drawer-duration-actions" aria-label="Ajustar duração"><button id="drawer-shrink" class="button button-secondary" type="button" '+((+item.duration||30)<=15?'disabled':'')+'>− 15 min</button><button id="drawer-grow" class="button button-secondary" type="button">+ 15 min</button></div><div class="button-row"><button id="drawer-replace" class="button button-secondary" type="button">Substituir programa</button><button id="drawer-dup" class="button button-secondary" type="button"><span data-icon="plus"></span> Duplicar para amanhã (+24h)</button><button id="drawer-edit" class="button button-primary" type="button">Editar ocorrência</button><button id="drawer-delete" class="button button-danger" type="button">Cancelar exibição</button></div>';
     $('#detail-drawer').classList.add('open');$('#detail-drawer').setAttribute('aria-hidden','false');$('#drawer-backdrop').classList.remove('hidden');
     $('#drawer-dup').addEventListener('click',()=>{
       const nextDate=C().isoDate(C().addDays(item.date,1));
@@ -185,6 +218,9 @@
       toast('Exibição duplicada para '+C().formatDate(nextDate)+' às '+item.start,'success');
     });
     $('#drawer-replace').addEventListener('click',()=>{closeDrawer();openReplaceOccurrence(item);});
+    const resizeBy=delta=>{try{const duration=Math.max(15,(+item.duration||30)+delta);C().changeOccurrence(item,{duration},'one');closeDrawer();renderAll();toast('Duração ajustada para '+duration+' minutos.','success');}catch(err){toast(err.message,'error');}};
+    $('#drawer-shrink').addEventListener('click',()=>resizeBy(-15));
+    $('#drawer-grow').addEventListener('click',()=>resizeBy(15));
     $('#drawer-edit').addEventListener('click',()=>{closeDrawer();openOccurrenceEdit(item);});
     $('#drawer-delete').addEventListener('click',()=>{closeDrawer();openCancelOccurrence(item);});
   }

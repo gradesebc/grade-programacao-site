@@ -637,9 +637,15 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
   },
   "JORNAL DA TV BRASIL": {
     "title": "JORNAL DA TV BRASIL",
-    "page_url": null,
-    "image_url": null,
-    "method": "not_found"
+    "page_url": "https://tvbrasil.ebc.com.br/reporterbrasil",
+    "image_url": "https://imagens.ebc.com.br/X_z2R6c6J3iYqK6mYp1Fw2n4vU8=/1140x560/smart/https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/reporter_brasil.png",
+    "method": "official_alias_reporter_brasil"
+  },
+  "BRASIL NO MUNDO": {
+    "title": "BRASIL NO MUNDO",
+    "page_url": "https://www.ebc.com.br/imprensa/2026/brasil-no-mundo-da-tv-brasil-leva-debate-geopolitico-a-tv-aberta",
+    "image_url": "https://ebc.com.br/imprensa/2026/brasil-no-mundo-da-tv-brasil-leva-debate-geopolitico-a-tv-aberta/@@images/image/large",
+    "method": "web_verified_ebc_imprensa"
   },
   "LADRÕES DE CINEMA": {
     "title": "LADRÕES DE CINEMA",
@@ -1043,6 +1049,18 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
     "image_url": "https://imagens.ebc.com.br/X_z2R6c6J3iYqK6mYp1Fw2n4vU8=/1140x560/smart/https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/reporter_brasil.png",
     "method": "direct_slug"
   },
+  "REPÓRTER BRASIL NOITE": {
+    "title": "REPÓRTER BRASIL NOITE",
+    "page_url": "https://tvbrasil.ebc.com.br/reporterbrasil",
+    "image_url": "https://imagens.ebc.com.br/X_z2R6c6J3iYqK6mYp1Fw2n4vU8=/1140x560/smart/https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/reporter_brasil.png",
+    "method": "official_alias_reporter_brasil"
+  },
+  "REPÓRTER BRASIL TARDE": {
+    "title": "REPÓRTER BRASIL TARDE",
+    "page_url": "https://tvbrasil.ebc.com.br/reporter-brasil-tarde",
+    "image_url": "https://imagens.ebc.com.br/tqnlpOlT4BpmRnOzozeukl2y2xk=/851x415/smart/https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/-d6a7319-1.jpg?itok=MVlj6o58",
+    "method": "web_verified_tvbrasil"
+  },
   "RETRATO DE UMA PAISAGEM": {
     "title": "RETRATO DE UMA PAISAGEM",
     "page_url": "https://tvbrasil.ebc.com.br/sessao-de-cinema/2026/05/retrato-de-uma-paisagem",
@@ -1132,6 +1150,12 @@ window.TVBRASIL_PROGRAM_ARTWORKS = {
     "page_url": "https://tvbrasil.ebc.com.br/stadium",
     "image_url": "https://imagens.ebc.com.br/fWZMyN1_qAk7UhHVOts2TMRxPkY=/1140x560/smart/https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/stadium.jpg?itok=1hNBewyq",
     "method": "direct_slug"
+  },
+  "STADIUM 1º TEMPO": {
+    "title": "STADIUM 1º TEMPO",
+    "page_url": "https://tvbrasil.ebc.com.br/stadium",
+    "image_url": "https://imagens.ebc.com.br/fWZMyN1_qAk7UhHVOts2TMRxPkY=/1140x560/smart/https://tvbrasil.ebc.com.br/sites/default/files/thumbnails/image/stadium.jpg?itok=1hNBewyq",
+    "method": "official_alias_stadium"
   },
   "SUJEITO OCULTO": {
     "title": "SUJEITO OCULTO",
