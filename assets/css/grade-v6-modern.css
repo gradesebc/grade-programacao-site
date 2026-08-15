@@ -1,3 +1,8 @@
+/*!
+ * Sistema de Grade - EBC / TV Brasil
+ * Autor e desenvolvedor: Henrique Rude ("HDut")
+ * Camada visual moderna: temas, densidade, cartoes da grade e impressao.
+ */
 :root{
   --channel-primary:#2e6ac2;--channel-secondary:#efbd09;--channel-accent:#57aeec;--channel-deep:#0b1a3c;
   --channel-soft:#e8f2ff;--channel-glow:rgba(46,106,194,.22);

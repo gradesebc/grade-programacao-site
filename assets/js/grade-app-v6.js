@@ -1,3 +1,8 @@
+/*!
+ * Sistema de Grade - EBC / TV Brasil
+ * Autor e desenvolvedor: Henrique Rude ("HDut")
+ * Camada de interface: grade semanal, catalogo, modais, impressao e sincronizacao visual.
+ */
 (() => {
   'use strict';
   const C=()=>window.EBCGrade,G=()=>window.EBCGraphStore,$=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -43,15 +48,14 @@
   function queueArtwork(element,item){
     if(!artworkPreferences().programArtworkEnabled)return;const program=programForItem(item)||item;if(!program?.title)return;element._artworkProgram=program;if(!('IntersectionObserver'in window)){loadArtwork(element,program);return;}if(!artworkObserver)artworkObserver=new IntersectionObserver(entries=>entries.forEach(entry=>{if(!entry.isIntersecting)return;artworkObserver.unobserve(entry.target);loadArtwork(entry.target,entry.target._artworkProgram);}),{rootMargin:'240px'});artworkObserver.observe(element);
   }
-  function invalidateArtwork(name=''){
-    artworkIndexPromise=null;if(name){const key=String(name).toLowerCase(),cached=artworkCache.get(key);Promise.resolve(cached).then(url=>{if(url)URL.revokeObjectURL(url);});artworkCache.delete(key);}
-  }
   window.addEventListener('ebc:remote-loaded',()=>{artworkIndexPromise=null;artworkCache.forEach((cached,key)=>Promise.resolve(cached).then(url=>{if(!url)artworkCache.delete(key);}));});
   function renderIcons(root=document){$$('[data-icon]',root).forEach(el=>{const name=el.dataset.icon;if(!icons[name])return;el.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+icons[name]+'</svg>';});}
   function renderAppVersion(){
     const version=document.querySelector('meta[name="application-version"]')?.content?.trim()||'não identificada';
     const releaseDate=document.querySelector('meta[name="application-release-date"]')?.content?.trim()||'';
     const label='Versão '+version+(releaseDate?' · '+releaseDate:'');
+    // Assinatura de autoria: aparece no console do navegador, não na interface.
+    console.info('%cSistema de Grade — EBC%c\n'+label+'\nDesenvolvido por '+(C()?.AUTHOR||'Henrique Rude (HDut)'),'font-weight:bold;font-size:13px','font-weight:normal');
     $$('[data-app-version]').forEach(element=>{element.textContent=label;});
     const sidebar=$('.sidebar-version');if(sidebar){sidebar.dataset.versionShort='v'+version;sidebar.title='Versão instalada: '+version+(releaseDate?' · '+releaseDate:'');}
     document.documentElement.dataset.appVersion=version;
@@ -239,9 +243,10 @@
     $('#drawer-dup').addEventListener('click',()=>{
       const nextDate=C().isoDate(C().addDays(item.date,1));
       const dup={...item,id:C().uid('dup'),date:nextDate,source:'manual'};
-      C().saveOccurrence(dup,'one');
+      try{C().saveOccurrence(dup);}catch(err){toast(err.message,'error');return;}
       closeDrawer();renderAll();
-      toast('Exibição duplicada para '+C().formatDate(nextDate)+' às '+item.start,'success');
+      // Dizemos o dia da semana: duplicar a sexta cai no sábado, e isso precisa ficar evidente.
+      toast('Exibição duplicada para '+C().formatDate(nextDate,{weekday:'long',day:'2-digit',month:'2-digit'})+' às '+item.start,'success');
     });
     $('#drawer-replace').addEventListener('click',()=>{closeDrawer();openReplaceOccurrence(item);});
     const resizeBy=delta=>{try{const duration=Math.max(15,(+item.duration||30)+delta);C().changeOccurrence(item,{duration},'one');closeDrawer();renderAll();toast('Duração ajustada para '+duration+' minutos.','success');}catch(err){toast(err.message,'error');}};
@@ -263,20 +268,43 @@
     openModal({title:'Programar conteúdo',kicker:'Nova exibição',wide:true,body:
       '<div class="form-grid"><label>Tipo de programação<select id="schedule-mode"><option value="rule">Recorrente</option><option value="manual">Somente uma data</option></select></label><label>Programa<select id="schedule-program"><option value="">Selecione...</option>'+programOptions()+'</select></label></div>'+
       '<div class="inline-fields"><label class="field">Data inicial<input id="schedule-date" type="date" value="'+today+'"></label><label class="field">Horário<input id="schedule-time" type="time" step="900" value="'+timeVal+'"></label><label class="field">Duração (min)<input id="schedule-duration" type="number" min="1" value="30"></label></div>'+
+      '<fieldset id="season-fields" class="form-section hidden"><legend>Temporadas e ponto de partida</legend><div id="schedule-season-list" class="check-grid"></div><label class="field">Começar em<select id="schedule-start-episode-id"></select><span class="helper">A sequência segue a partir daí e volta ao início ao terminar.</span></label></fieldset>'+
       '<fieldset id="recurrence-fields" class="form-section"><legend>Dias de exibição principal</legend><div class="check-grid">'+C().DAYS.map(d=>'<label class="check-option"><input name="weekdays" type="checkbox" value="'+d+'" '+(d===weekday?'checked':'')+'>'+d+'</label>').join('')+'</div><div class="form-grid"><label>Encerramento<select id="schedule-end-mode"><option value="none">Sem término</option><option value="date">Em uma data</option><option value="cycles">Após ciclos completos</option></select></label><label>Data final<input id="schedule-end-date" type="date"></label><label>Ciclos da sequência<input id="schedule-cycles" type="number" min="1" value="1"></label><label>Episódio inicial<input id="schedule-start-episode" type="number" min="1" value="1"></label></div></fieldset>'+
-      '<fieldset class="form-section"><legend>Formato da exibição</legend><div class="form-grid"><label>Tipo<select id="schedule-type"><option value="live">Ao vivo</option><option value="recorded" selected>Gravado</option><option value="mixed">Misto</option><option value="unspecified">Sem definição</option></select></label><label>Origem<select id="schedule-origin"><option value="own">Produção própria</option><option value="independent">Produção independente</option><option value="licensed" selected>Licenciado</option><option value="news">Jornalismo</option><option value="institutional">Institucional</option></select></label></div><label class="toggle"><input id="schedule-rerun" type="checkbox"> Criar uma reprise vinculada</label><div id="rerun-fields" class="inline-fields hidden"><label class="field">Horário da reprise<input id="rerun-time" type="time" step="900" value="20:00"></label><label class="field">Quando<select id="rerun-offset"><option value="0">No mesmo dia</option><option value="1">No dia seguinte</option></select></label></div></fieldset>',
+      '<fieldset class="form-section"><legend>Formato da exibição</legend><div class="form-grid"><label>Tipo<select id="schedule-type"><option value="live">Ao vivo</option><option value="recorded" selected>Gravado</option><option value="mixed">Misto</option><option value="unspecified">Sem definição</option></select></label><label>Origem<select id="schedule-origin"><option value="own">Produção própria</option><option value="independent">Produção independente</option><option value="licensed" selected>Licenciado</option><option value="news">Jornalismo</option><option value="institutional">Institucional</option></select></label></div><label class="toggle"><input id="schedule-rerun" type="checkbox"> Criar uma reprise vinculada</label><div id="rerun-fields" class="hidden"><div class="inline-fields"><label class="field">Horário da reprise<input id="rerun-time" type="time" step="900" value="20:00"></label><label class="field">Quando<select id="rerun-offset"><option value="0">No mesmo dia</option><option value="1">No dia seguinte</option></select></label></div><label class="toggle"><input id="rerun-any-day" type="checkbox"> Permitir a reprise fora dos dias escolhidos<span class="helper">Desligado, a reprise de sexta não cai no sábado: ela é dispensada.</span></label></div></fieldset>',
       footer:'<button class="button button-secondary" data-modal-cancel type="button">Cancelar</button><button id="save-schedule" class="button button-primary" type="button">Salvar programação</button>'});
     $('[data-modal-cancel]').addEventListener('click',closeModal);$('#schedule-mode').addEventListener('change',e=>$('#recurrence-fields').classList.toggle('hidden',e.target.value==='manual'));$('#schedule-rerun').addEventListener('change',e=>$('#rerun-fields').classList.toggle('hidden',!e.target.checked));
-    const updateScheduleEpisodeControl=()=>{const p=C().getCatalog().find(x=>x.id===$('#schedule-program').value),field=$('#schedule-start-episode')?.closest('label');if(!field)return;const mode=p?C().episodeModeFor(p):'none';field.classList.toggle('hidden',mode!=='continuous');field.querySelector('input').disabled=mode!=='continuous';};
+    const selectedScheduleSeasons=()=>$$('input[name="schedule-season"]:checked',$('#app-modal')).map(input=>input.value);
+    const refreshStartEpisodes=()=>{
+      const program=C().getCatalog().find(x=>x.id===$('#schedule-program').value),select=$('#schedule-start-episode-id');if(!select)return;
+      const sequence=program?C().episodeSequence(program,selectedScheduleSeasons()):[],previous=select.value;
+      select.innerHTML=sequence.length?sequence.map(episode=>'<option value="'+esc(episode.id)+'">'+esc((episode.season?'T'+episode.season+' · ':'')+(episode.number?'EP '+episode.number:'Episódio')+(episode.title?' — '+episode.title:''))+'</option>').join(''):'<option value="">Nenhum episódio nas temporadas escolhidas</option>';
+      select.disabled=!sequence.length;if(previous&&sequence.some(episode=>String(episode.id)===previous))select.value=previous;
+    };
+    const updateScheduleEpisodeControl=()=>{
+      const program=C().getCatalog().find(x=>x.id===$('#schedule-program').value),mode=program?C().episodeModeFor(program):'none',field=$('#schedule-start-episode')?.closest('label');
+      if(field){field.classList.toggle('hidden',mode!=='continuous');field.querySelector('input').disabled=mode!=='continuous';}
+      const panel=$('#season-fields');if(!panel)return;
+      panel.classList.toggle('hidden',mode!=='catalog');
+      if(mode!=='catalog'){$('#schedule-season-list').innerHTML='';return;}
+      const seasons=(program.seasons||[]).slice().sort((a,b)=>(+a.order||+a.number||0)-(+b.order||+b.number||0));
+      $('#schedule-season-list').innerHTML=seasons.map(season=>'<label class="check-option"><input name="schedule-season" type="checkbox" value="'+esc(season.id)+'" checked>'+esc('T'+(season.number||'?')+(season.title?' · '+season.title:'')+' ('+(season.episodes||[]).length+' ep.)')+'</label>').join('')||'<p class="muted">Este programa ainda não tem temporadas cadastradas.</p>';
+      $$('input[name="schedule-season"]',panel).forEach(input=>input.addEventListener('change',refreshStartEpisodes));
+      refreshStartEpisodes();
+    };
     $('#schedule-program').addEventListener('change',e=>{const p=C().getCatalog().find(x=>x.id===e.target.value);if(p){$('#schedule-duration').value=p.defaultDuration||30;$('#schedule-type').value=p.type==='unspecified'?'recorded':p.type;$('#schedule-origin').value=p.origin||'licensed';}updateScheduleEpisodeControl();});
-    $('#save-schedule').addEventListener('click',saveScheduleFromForm);
+    updateScheduleEpisodeControl();$('#save-schedule').addEventListener('click',saveScheduleFromForm);
   }
   function saveScheduleFromForm(){
     try{
       const program=C().getCatalog().find(p=>p.id===$('#schedule-program').value);if(!program)throw new Error('Escolha um programa do catálogo.');
-      const episodeMode=C().episodeModeFor(program),base={channel:C().session.channel,programId:program.id,title:program.title,startsAt:$('#schedule-date').value,start:$('#schedule-time').value,duration:+$('#schedule-duration').value||program.defaultDuration||30,type:$('#schedule-type').value,origin:program.origin||$('#schedule-origin').value,category:program.category||'',episodeMode,startEpisode:episodeMode==='continuous'?(+$('#schedule-start-episode')?.value||program.episodeCounter||1):1};
-      if($('#schedule-mode').value==='manual')C().saveOccurrence({...base,date:base.startsAt,episodeNumber:episodeMode==='continuous'?base.startEpisode:''});
-      else{const weekdays=$$('input[name="weekdays"]:checked',$('#app-modal')).map(i=>i.value);const endMode=$('#schedule-end-mode').value,reruns=$('#schedule-rerun').checked?[{start:$('#rerun-time').value,dayOffset:+$('#rerun-offset').value}]:[];C().saveRule({...base,id:C().uid('rule'),weekdays,endMode,endsAt:endMode==='date'?$('#schedule-end-date').value:'',cycles:endMode==='cycles'?+$('#schedule-cycles').value||1:1,continuous:episodeMode==='continuous',selectedSeasons:[],reruns,active:true});}
+      const episodeMode=C().episodeModeFor(program),selectedSeasons=episodeMode==='catalog'?$$('input[name="schedule-season"]:checked',$('#app-modal')).map(input=>input.value):[],startEpisodeId=episodeMode==='catalog'?($('#schedule-start-episode-id')?.value||''):'';
+      if(episodeMode==='catalog'&&!selectedSeasons.length)throw new Error('Escolha pelo menos uma temporada.');
+      const base={channel:C().session.channel,programId:program.id,title:program.title,startsAt:$('#schedule-date').value,start:$('#schedule-time').value,duration:+$('#schedule-duration').value||program.defaultDuration||30,type:$('#schedule-type').value,origin:program.origin||$('#schedule-origin').value,category:program.category||'',episodeMode,selectedSeasons,startEpisodeId,startEpisode:episodeMode==='continuous'?(+$('#schedule-start-episode')?.value||program.episodeCounter||1):1};
+      if($('#schedule-mode').value==='manual'){
+        const sequence=episodeMode==='catalog'?C().episodeSequence(program,selectedSeasons):[],chosen=sequence[C().sequenceStartOffset(base,sequence)]||null;
+        C().saveOccurrence({...base,date:base.startsAt,season:chosen?.season||'',episodeId:chosen?.id||'',episodeTitle:chosen?.title||'',episodeNumber:episodeMode==='continuous'?base.startEpisode:(chosen?.number||'')});
+      }
+      else{const weekdays=$$('input[name="weekdays"]:checked',$('#app-modal')).map(i=>i.value);const endMode=$('#schedule-end-mode').value,reruns=$('#schedule-rerun').checked?[{start:$('#rerun-time').value,dayOffset:+$('#rerun-offset').value}]:[];C().saveRule({...base,id:C().uid('rule'),weekdays,endMode,endsAt:endMode==='date'?$('#schedule-end-date').value:'',cycles:endMode==='cycles'?+$('#schedule-cycles').value||1:1,continuous:episodeMode==='continuous',rerunsAnyDay:!!$('#rerun-any-day')?.checked,reruns,active:true});}
       closeModal();renderAll();toast('Programação salva com sucesso.','success');
     }catch(err){toast(err.message,'error');}
   }
@@ -380,17 +408,6 @@
   }
   function saveColorGroupForm(){try{const background=$('#color-background').value.trim();if(!/^#[0-9a-f]{6}$/i.test(background))throw new Error('Use a cor no formato hexadecimal, como #2E6AC2.');const saved=C().saveColorGroup({id:$('#color-id').value||'',name:$('#color-name').value,match:$('#color-match').value,background});renderAll();openColorGroupsManager(saved.id);toast('Grupo de cor salvo e sincronizado.','success');}catch(err){toast(err.message,'error');}}
   function confirmColorGroupDelete(id){const group=C().getColorGroups().find(item=>item.id===id);if(!group)return;const usage=C().colorGroupUsage(id);openModal({title:'Excluir grupo de cor',kicker:'Confirmação',body:'<p>Excluir o grupo <strong>'+esc(group.name)+'</strong>?</p><p class="muted">'+usage+' programa(s) voltarão para a cor automática. Nenhum programa ou exibição será apagado.</p>',footer:'<button class="button button-secondary" id="cancel-color-delete" type="button">Voltar</button><button id="confirm-color-delete" class="button button-danger" type="button">Excluir grupo</button>'});$('#cancel-color-delete').addEventListener('click',()=>openColorGroupsManager(group.id));$('#confirm-color-delete').addEventListener('click',()=>{const affected=C().removeColorGroup(id);renderAll();openColorGroupsManager();toast('Grupo excluído. '+affected+' programa(s) voltaram para a cor automática.','success');});}
-  async function compressProgramArtwork(file){
-    if(!file)throw new Error('Escolha uma imagem.');if(file.size>C().LIMITS.artworkBytes)throw new Error('A imagem original deve ter no máximo 8 MB.');if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw new Error('Use uma imagem JPG, PNG ou WebP.');
-    const bitmap=await createImageBitmap(file);if(bitmap.width*bitmap.height>40000000){bitmap.close?.();throw new Error('A imagem possui resolução alta demais. Use até aproximadamente 40 megapixels.');}const scale=Math.min(1,1280/bitmap.width,720/bitmap.height),canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const context=canvas.getContext('2d',{alpha:false});context.fillStyle='#ffffff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close?.();
-    const encode=quality=>new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Não foi possível converter a imagem.')),'image/webp',quality));let blob=await encode(.76);if(blob.size>700*1024)blob=await encode(.62);if(blob.size>900*1024)throw new Error('A imagem continua muito grande após a otimização. Escolha outra imagem.');return blob;
-  }
-  async function uploadProgramArtwork(programId,file,opacity,scope){
-    if(typeof graphSalvarArquivoBinario!=='function'||typeof graphObterPastaCaminho!=='function')throw new Error('Conecte o OneDrive antes de enviar a imagem.');const blob=await compressProgramArtwork(file),folder=await graphObterPastaCaminho(['dados','v6','midias','programas'],true),namespace=scope==='channel'?'canal_'+C().session.channel:'global',fileName=C().slug(namespace+'_'+programId+'_'+Date.now().toString(36))+'.webp';await graphSalvarArquivoBinario(folder.id,fileName,blob,'image/webp');invalidateArtwork(fileName);return {fileName,mimeType:'image/webp',size:blob.size,opacity,updatedAt:new Date().toISOString()};
-  }
-  function updateArtworkOpacityLabel(){const input=$('#program-artwork-opacity'),label=$('#program-artwork-opacity-label');if(input&&label)label.textContent=input.value+'%';}
-  function previewArtworkFile(file){const preview=$('#program-artwork-preview'),empty=$('#program-artwork-empty');if(!preview||!file)return;const url=URL.createObjectURL(file);preview.onload=()=>URL.revokeObjectURL(url);preview.src=url;preview.classList.remove('hidden');empty?.classList.add('hidden');$('#program-artwork-remove').checked=false;}
-  function loadProgramArtworkPreview(program){const preview=$('#program-artwork-preview'),empty=$('#program-artwork-empty');if(!preview||!program?.artwork)return;artworkUrl(program.artwork,program.title).then(url=>{if(!url||!preview.isConnected)return;preview.src=url;preview.classList.remove('hidden');empty?.classList.add('hidden');});}
   function openProgramForm(program=null){
     if(program?.scope==='global'&&!C().isAdmin()){toast('Este programa global esta disponivel apenas para leitura.','error');return;}
     const p=C().clone(program||{title:'',scope:C().isAdmin()?'global':'channel',type:'unspecified',origin:'licensed',category:'',subgroups:[],cl:'',defaultDuration:30,episodeMode:'none',continuous:false,episodeCounter:1,seasons:[],rights:[]}),episodeMode=C().episodeModeFor(p),right=p.rights?.[0]||{},scopeOptions=C().isAdmin()?'<option value="global" '+(p.scope!=='channel'?'selected':'')+'>Todos os canais</option><option value="channel" '+(p.scope==='channel'?'selected':'')+'>Somente este canal</option>':'<option value="channel" selected>Somente este canal</option>';
@@ -544,7 +561,7 @@
     $('[data-modal-cancel]').addEventListener('click',closeModal);$('#cleanup-go').addEventListener('click',async event=>{if($('#cleanup-confirm').value.trim().toUpperCase()!==expected){toast('A confirmação digitada não corresponde.','error');return;}const button=event.currentTarget;button.disabled=true;try{const backup=C().createCleanupBackup(scope,ui.week);await G().saveBackup(backup);C().cleanup(scope,ui.week);await G().saveNow();closeModal();renderAll();toast('Limpeza concluída com backup preservado.','success');}catch(err){button.disabled=false;toast(err.message,'error');}});
   }
   function openPrintOptions(){
-    openModal({title:'Gerar PDF',kicker:'Impressão independente da tela',body:'<p>Escolha o formato. A grade na tela não será alterada.</p><label class="check-option"><input type="radio" name="print-mode" value="summary" checked><span><strong>Resumo em uma página</strong><br><small>24 horas em A4 retrato</small></span></label><label class="check-option" style="margin-top:9px"><input type="radio" name="print-mode" value="legible"><span><strong>Modo legível em duas páginas</strong><br><small>00h–12h e 12h–24h</small></span></label>',footer:'<button class="button button-secondary" data-modal-cancel type="button">Cancelar</button><button id="print-go" class="button button-primary" type="button"><span data-icon="print"></span> Abrir impressão</button>'});$('[data-modal-cancel]').addEventListener('click',closeModal);$('#print-go').addEventListener('click',()=>{const mode=$('input[name="print-mode"]:checked').value;closeModal();renderPrint(mode);setTimeout(()=>window.print(),80);});
+    openModal({title:'Gerar PDF',kicker:'Impressão independente da tela',body:'<p>Escolha o formato. A grade na tela não será alterada.</p><label class="check-option"><input type="radio" name="print-mode" value="summary" checked><span><strong>Resumo em uma página</strong><br><small>Das 06h às 06h em A4 retrato, igual à tela</small></span></label><label class="check-option" style="margin-top:9px"><input type="radio" name="print-mode" value="legible"><span><strong>Modo legível em duas páginas</strong><br><small>06h–18h e 18h–06h</small></span></label>',footer:'<button class="button button-secondary" data-modal-cancel type="button">Cancelar</button><button id="print-go" class="button button-primary" type="button"><span data-icon="print"></span> Abrir impressão</button>'});$('[data-modal-cancel]').addEventListener('click',closeModal);$('#print-go').addEventListener('click',()=>{const mode=$('input[name="print-mode"]:checked').value;closeModal();renderPrint(mode);setTimeout(()=>window.print(),80);});
   }
   function renderPrint(mode){
     const items=C().getWeek(C().session.channel,ui.week),ranges=mode==='legible'?[[0,48],[48,96]]:[[0,96]],root=$('#print-root');root.innerHTML='';
@@ -552,7 +569,7 @@
   }
   function buildPrintTable(items,from,to){
     const table=document.createElement('table');table.className='print-grid';table.innerHTML='<thead><tr><th class="print-time">Hora</th>'+C().DAYS.map(d=>'<th>'+d+'</th>').join('')+'</tr></thead>';const body=document.createElement('tbody'),occupied=Array(7).fill(0),segments=C().DAYS.map((_,day)=>C().printSegments(items,C().isoDate(C().addDays(ui.week,day)),from,to));
-    for(let slot=from;slot<to;slot++){const tr=document.createElement('tr'),time=slot*15,th=document.createElement('td');th.className='print-time';th.textContent=C().timeFromMinutes(time);tr.append(th);
+    for(let slot=from;slot<to;slot++){const tr=document.createElement('tr'),time=slot*15,th=document.createElement('td');th.className='print-time';th.textContent=C().timeFromOpMinutes(time);tr.append(th);
       for(let day=0;day<7;day++){if(occupied[day]>0){occupied[day]--;continue;}const segment=segments[day].get(slot),td=document.createElement('td');if(segment){const event=segment.item,span=segment.span,sizeClass=span===1?' print-short':span===2?' print-medium':span===3?' print-compact':' print-comfortable',continuation=segment.continuesBefore?'<span class="print-meta print-continuation">CONTINUAÇÃO</span>':'';occupied[day]=span-1;td.rowSpan=span;td.className='print-merged-cell';td.dataset.duration=String(Math.max(1,+event.duration||30));td.innerHTML='<div class="print-program'+sizeClass+'"><strong class="print-title">'+esc(event.title)+'</strong>'+continuation+(event.episodeNumber||event.episodeTitle?'<span class="print-meta print-episode">'+esc(event.season?'T'+event.season+' ':'')+esc(event.episodeNumber?'EP '+event.episodeNumber:'')+' '+esc(event.episodeTitle||'')+'</span>':'')+(event.type==='live'?'<span class="print-meta print-status">AO VIVO</span>':event.isRerun?'<span class="print-meta print-status">REPRISE</span>':'')+'</div>';applyProgramColor(td,event,true);}tr.append(td);}body.append(tr);
     }table.append(body);return table;
   }

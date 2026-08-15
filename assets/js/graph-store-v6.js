@@ -1,3 +1,8 @@
+/*!
+ * Sistema de Grade - EBC / TV Brasil
+ * Autor e desenvolvedor: Henrique Rude ("HDut")
+ * Persistencia no OneDrive via Microsoft Graph: estado, historico e backups.
+ */
 (() => {
   'use strict';
   const core=()=>window.EBCGrade;const DELAY=15000,VERSION_WINDOW_MINUTES=5,MAX_JSON_CHARS=15*1024*1024;let timer=null,connected=false,saving=false,versions=[];const knownSnapshots=new Map(),knownEtags=new Map();

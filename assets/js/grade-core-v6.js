@@ -1,6 +1,14 @@
+/*!
+ * Sistema de Grade — EBC / TV Brasil
+ * Autor e desenvolvedor: Henrique Rude ("HDut")
+ * Núcleo de regras: grade, recorrências, episódios, vigências e conflitos.
+ * A autoria acompanha os dados exportados (campo `authoredBy`) e as cópias de segurança.
+ */
 (() => {
   'use strict';
   const VERSION = 6;
+  const AUTHOR = 'Henrique Rude (HDut)';
+  const AUTHOR_HANDLE = 'HDut';
   const BOOTSTRAP_ADMIN_EMAILS = new Set(['francisco.mauro@ebc.com.br']);
   const LIMITS = Object.freeze({
     workbookBytes:8*1024*1024,workbookRows:20000,workbookSheets:20,episodesPerProgram:5000,
@@ -46,8 +54,10 @@
   const formatDate = (value,options={}) => parseLocalDate(value).toLocaleDateString('pt-BR',options);
   function printSegments(items,date,fromSlot=0,toSlot=96){
     const first=Math.max(0,Math.min(95,Math.floor(+fromSlot||0))),last=Math.max(first+1,Math.min(96,Math.ceil(+toSlot||96))),fromMinute=first*15,toMinute=last*15,starts=new Map();
-    (items||[]).filter(item=>item.date===date).map(item=>{
-      const originalStart=minutes(item.start),duration=Math.max(1,+item.duration||30),originalEnd=originalStart+duration;
+    const previousDate=isoDate(addDays(date,-1));
+    (items||[]).filter(item=>item.date===date||item.date===previousDate).map(item=>{
+      const dayOffset=item.date===date?0:-1440;
+      const originalStart=opMinutes(item.start)+dayOffset,duration=Math.max(1,+item.duration||30),originalEnd=originalStart+duration;
       if(originalEnd<=fromMinute||originalStart>=toMinute)return null;
       const clippedStart=Math.max(fromMinute,originalStart),clippedEnd=Math.min(toMinute,originalEnd),slot=Math.max(first,Math.floor(clippedStart/15)),endSlot=Math.min(last,Math.ceil(clippedEnd/15));
       return {item,slot,span:Math.max(1,endSlot-slot),continuesBefore:originalStart<fromMinute,continuesAfter:originalEnd>toMinute,originalStart,originalEnd};
@@ -412,15 +422,32 @@
     const seasons=(program?.seasons||[]).filter(s=>!selectedSeasons.length||selectedSeasons.map(String).includes(String(s.id))||selectedSeasons.map(String).includes(String(s.number)));
     return seasons.sort((a,b)=>(+a.order||+a.number||0)-(+b.order||+b.number||0)).flatMap(s=>(s.episodes||[]).sort((a,b)=>(+a.number||0)-(+b.number||0)).map(e=>({...e,season:s.number||s.title||''})));
   }
+  // Posição da sequência em que a regra começa a contar. Guardamos o id do episódio
+  // para o ponto de partida sobreviver a reordenações do catálogo.
+  function sequenceStartOffset(rule,sequence){
+    if(!sequence.length)return 0;
+    if(rule?.startEpisodeId){const found=sequence.findIndex(episode=>String(episode.id)===String(rule.startEpisodeId));if(found>=0)return found;}
+    return Math.max(0,Math.min(sequence.length-1,(+rule?.startEpisodeIndex||1)-1));
+  }
   function primaryDatesUntil(rule,endDate){
     const start=parseLocalDate(rule.startsAt);const end=parseLocalDate(endDate);const dates=[];let cursor=start;let guard=0;
     while(cursor<=end&&guard++<40000){const day=DAYS[(cursor.getDay()+6)%7];if((rule.weekdays||[]).includes(day))dates.push(isoDate(cursor));cursor=addDays(cursor,1);}return dates;
   }
   function skipped(channel,date){return (channel.skipRanges||[]).some(range=>date>=range.start&&date<=range.end);}
+  function weekdayOf(date){return DAYS[(parseLocalDate(date).getDay()+6)%7];}
+  // Agenda de horários ocupados indexada por dia operacional, para descobrir rapidamente
+  // se uma data da regra já está tomada por outro programa.
+  function busyIndex(){
+    const map=new Map(),bounds=(date,start,duration)=>{const s=operationalAbsoluteStart(date,start),e=s+Math.max(1,Math.min(1440,+duration||30));return [s,e,Math.floor(s/1440),Math.floor((e-1)/1440)];};
+    return {
+      add(date,start,duration){const [s,e,first,last]=bounds(date,start,duration);for(let day=first;day<=last;day++){if(!map.has(day))map.set(day,[]);map.get(day).push({start:s,end:e});}},
+      free(date,start,duration){const [s,e,first,last]=bounds(date,start,duration);for(let day=first;day<=last;day++){const list=map.get(day);if(list&&list.some(slot=>s<slot.end&&e>slot.start))return false;}return true;}
+    };
+  }
   function ruleOccurrence(rule,date,index,program){
     const sequence=episodeSequence(program,rule.selectedSeasons||[]);const cycles=Math.max(1,+rule.cycles||1);const limit=sequence.length?sequence.length*cycles:Infinity;
     if(rule.endMode==='cycles'&&index>=limit)return null;if(rule.endsAt&&date>rule.endsAt)return null;
-    const mode=rule.episodeMode||episodeModeFor(program),episode=mode==='catalog'&&sequence.length?sequence[index%sequence.length]:null;const number=episode?.number||(mode==='continuous'?(+rule.startEpisode||1)+index:'');
+    const mode=rule.episodeMode||episodeModeFor(program),offset=sequenceStartOffset(rule,sequence),episode=mode==='catalog'&&sequence.length?sequence[(index+offset)%sequence.length]:null;const number=episode?.number||(mode==='continuous'?(+rule.startEpisode||1)+index:'');
     return {id:'gen_'+rule.id+'_'+date,ruleId:rule.id,channel:rule.channel,date,occurrenceDate:date,occurrenceKind:'primary',start:rule.start,duration:+rule.duration||program?.defaultDuration||30,programId:rule.programId,title:rule.title||program?.title||'Programa',season:episode?.season||rule.season||'',episodeId:episode?.id||'',episodeNumber:number,episodeTitle:episode?.title||'',type:rule.type||program?.type||'recorded',origin:rule.origin||program?.origin||'licensed',category:rule.category||program?.category||'',isRerun:false,source:'rule'};
   }
   function occurrenceAnchorDate(item){return item?.occurrenceDate||item?.date||'';}
@@ -442,13 +469,27 @@
   function getOccurrences(channelId,from,to){
     requireChannelAccess(channelId);
     const channel=state.channels[channelId]||emptyChannel();const catalogMap=new Map(getCatalog().map(p=>[p.id,p]));const result=channel.occurrences.filter(o=>o.date>=from&&o.date<=to).map(clone);
+    // As exibições avulsas têm prioridade: a recorrência se acomoda em volta delas.
+    const busy=busyIndex();(channel.occurrences||[]).forEach(item=>busy.add(item.date,item.start,item.duration));
     channel.rules.filter(r=>r.active!==false&&r.startsAt<=to&&(!r.endsAt||r.endsAt>=from)).forEach(rule=>{
       const program=catalogMap.get(rule.programId),movedAnchors=channel.exceptions.filter(ex=>ex.ruleId===rule.id&&ex.action==='change'&&ex.changes?.date>=from&&ex.changes?.date<=to).map(ex=>ex.date).filter(Boolean),generationTo=[to,...movedAnchors].sort().at(-1),dates=primaryDatesUntil(rule,generationTo);
-      dates.forEach((date,index)=>{
-        if(skipped(channel,date))return;const basePrimary=ruleOccurrence(rule,date,index,program);if(!basePrimary)return;const primary=applyException(basePrimary,channel.exceptions);if(primary&&primary.date>=from&&primary.date<=to)result.push(primary);
+      const rerunsFollowWeekdays=rule.rerunsAnyDay!==true;
+      // aired conta só os dias que realmente foram ao ar: um dia ocupado não gasta episódio,
+      // ele simplesmente escorrega para o próximo dia válido da regra.
+      let aired=0;
+      dates.forEach(date=>{
+        if(skipped(channel,date))return;
+        const basePrimary=ruleOccurrence(rule,date,aired,program);if(!basePrimary)return;
+        if(!busy.free(date,basePrimary.start,basePrimary.duration))return;
+        busy.add(date,basePrimary.start,basePrimary.duration);aired++;
+        const primary=applyException(basePrimary,channel.exceptions);if(primary&&primary.date>=from&&primary.date<=to)result.push(primary);
         (rule.reruns||[]).forEach((rerun,rIndex)=>{
-          const rerunDate=isoDate(addDays(date,+rerun.dayOffset||0));if(skipped(channel,rerunDate))return;
-          let copy={...basePrimary,id:'gen_'+rule.id+'_'+date+'_rerun_'+rIndex,date:rerunDate,occurrenceDate:rerunDate,start:rerun.start||basePrimary.start,type:'rerun',category:'Reprise',isRerun:true,originalDate:date,occurrenceKind:'rerun'};
+          const offset=+rerun.dayOffset||0,rerunDate=isoDate(addDays(date,offset));if(skipped(channel,rerunDate))return;
+          // A reprise nunca cai num dia que a regra não contempla (era assim que a sexta virava sábado).
+          if(offset&&rerunsFollowWeekdays&&!(rule.weekdays||[]).includes(weekdayOf(rerunDate)))return;
+          const rerunStart=rerun.start||basePrimary.start;if(!busy.free(rerunDate,rerunStart,basePrimary.duration))return;
+          busy.add(rerunDate,rerunStart,basePrimary.duration);
+          let copy={...basePrimary,id:'gen_'+rule.id+'_'+date+'_rerun_'+rIndex,date:rerunDate,occurrenceDate:rerunDate,start:rerunStart,type:'rerun',category:'Reprise',isRerun:true,originalDate:date,occurrenceKind:'rerun'};
           copy=applyException(copy,channel.exceptions);if(copy&&copy.date>=from&&copy.date<=to)result.push(copy);
         });
       });
@@ -482,9 +523,12 @@
     if(!rule.programId&&!rule.title)throw new Error('Escolha um programa.');if(!rule.startsAt||!rule.start)throw new Error('Informe data e horário.');if(!(rule.weekdays||[]).length)throw new Error('Escolha pelo menos um dia da semana.');
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(rule.startsAt))||!/^([01]\d|2[0-3]):[0-5]\d$/.test(String(rule.start)))throw new Error('A data ou o horario da regra e invalido.');
     if(rule.endMode==='date'&&!rule.endsAt)throw new Error('Informe a data de término da recorrência.');
-    const testState=clone(currentChannel().rules);const candidate={...rule,id:rule.id||uid('rule'),channel:session.channel};currentChannel().rules=[...testState.filter(r=>r.id!==candidate.id),candidate];
-    const end=isoDate(addDays(candidate.startsAt,90));const collision=conflicts(getOccurrences(session.channel,candidate.startsAt,end));currentChannel().rules=testState;
-    if(collision.length)throw new Error('A regra cria conflito de horário nos próximos 90 dias. Ajuste o horário ou a duração.');return candidate;
+    const testState=clone(currentChannel().rules);const candidate={...rule,id:rule.id||uid('rule'),channel:session.channel,selectedSeasons:Array.isArray(rule.selectedSeasons)?rule.selectedSeasons.map(String):[]};currentChannel().rules=[...testState.filter(r=>r.id!==candidate.id),candidate];
+    // Dias já ocupados são pulados silenciosamente pelo gerador; só recusamos a regra
+    // quando ela não consegue ir ao ar em nenhum dia dos próximos 90.
+    const end=isoDate(addDays(candidate.startsAt,90));let airings=0;
+    try{airings=getOccurrences(session.channel,candidate.startsAt,end).filter(item=>item.ruleId===candidate.id).length;}finally{currentChannel().rules=testState;}
+    if(!airings)throw new Error('Nenhum dia dessa recorrência está livre nos próximos 90 dias. Ajuste o horário, a duração ou os dias escolhidos.');return candidate;
   }
   function saveRule(rule){requireChannelAccess();const candidate=validateRule(rule);const list=currentChannel().rules;const index=list.findIndex(r=>r.id===candidate.id);captureGradeUndo(index>=0?'Editar regra recorrente':'Criar regra recorrente');if(index>=0)list[index]=candidate;else list.push(candidate);audit(index>=0?'Regra atualizada':'Programação recorrente criada',candidate.title||getCatalog().find(p=>p.id===candidate.programId)?.title||'Programa');return candidate;}
   function saveOccurrence(item,control={}){
@@ -510,7 +554,11 @@
     captureGradeUndo('Alterar '+(item.title||'exibição'));
     if(item.source==='manual'||item.source==='migration')return saveOccurrence({...item,...changes},{capture:false});
     if(scope==='future'){const anchor=occurrenceAnchorDate(item),rule=currentChannel().rules.find(r=>r.id===item.ruleId);if(rule){Object.assign(rule,changes,{startsAt:anchor});audit('Regra alterada a partir de '+formatDate(anchor),item.title);return rule;}}
-    if(scope==='week'){const week=isoDate(startOfWeek(item.date));DAYS.forEach((_,i)=>{const date=isoDate(addDays(week,i));currentChannel().exceptions.push({id:uid('exception'),ruleId:item.ruleId,date,action:'change',changes:clone(changes)});});}
+    if(scope==='week'){
+      // Só os dias que a regra realmente contempla: antes isto criava exceção também no sábado e no domingo.
+      const week=isoDate(startOfWeek(item.date)),rule=currentChannel().rules.find(r=>r.id===item.ruleId),days=rule?.weekdays||[];
+      DAYS.forEach((weekday,i)=>{const date=isoDate(addDays(week,i));if(days.length&&!days.includes(weekday))return;currentChannel().exceptions.push({id:uid('exception'),ruleId:item.ruleId,date,action:'change',changes:clone(changes)});});
+    }
     else upsertOccurrenceException(item,'change',changes);
     audit('Exibição excepcional alterada',item.title);return true;
   }
@@ -535,7 +583,8 @@
     });
     const start=isoDate(startOfWeek(new Date())),items=getWeek(session.channel,start);
     conflicts(items).forEach((c,i)=>alerts.push({id:'conflict_'+i,type:'conflict',severity:'critical',title:c.a.title+' × '+c.b.title,message:'Conflito em '+formatDate(c.date)+' às '+c.b.start,date:c.date,programId:c.a.programId}));
-    return alerts.sort((a,b)=>(a.severity==='critical'?-1:1)-(b.severity==='critical'?-1:1)||a.title.localeCompare(b.title,'pt-BR'));
+    const rank={critical:0,warning:1,history:2};
+    return alerts.sort((a,b)=>(rank[a.severity]??1)-(rank[b.severity]??1)||String(a.title||'').localeCompare(String(b.title||''),'pt-BR'));
   }
   function headerScore(row){const names=(row||[]).map(normalize);let score=0;if(names.some(v=>v==='obra audiovisual'))score+=8;else if(names.some(v=>/(obra|programa|titulo)/.test(v)))score+=4;if(names.some(v=>v.includes('episod')))score+=2;if(names.some(v=>v.includes('duracao')||v.includes('minutos')))score+=2;if(names.some(v=>v.includes('vigencia')))score+=3;if(names.some(v=>v.includes('exibic')))score+=2;return score;}
   function locateTable(workbook){
@@ -657,7 +706,7 @@
     requireAdmin();return {schemaVersion:VERSION,type:'ebc-grade-full-internal-backup',id:uid('backup'),exportedAt:new Date().toISOString(),exportedBy:session.user,reason,state:clone(state)};
   }
   function makeChannelBackup(reason='Copia manual do canal',channel=session.channel){
-    requireChannelAccess(channel);return {schemaVersion:VERSION,type:'ebc-grade-channel-backup',id:uid('backup'),channel,channelName:CHANNELS[channel].name,exportedAt:new Date().toISOString(),exportedBy:session.user,reason,data:clone(state.channels[channel])};
+    requireChannelAccess(channel);return {schemaVersion:VERSION,type:'ebc-grade-channel-backup',authoredBy:AUTHOR,id:uid('backup'),channel,channelName:CHANNELS[channel].name,exportedAt:new Date().toISOString(),exportedBy:session.user,reason,data:clone(state.channels[channel])};
   }
   function snapshot(reason,scope='channel'){
     const backup=scope==='global'?makeFullBackup(reason):makeChannelBackup(reason);
@@ -693,8 +742,8 @@
     const exhibitions=[];allowedChannelIds().forEach(channel=>getOccurrences(channel,isoDate(addDays(new Date(),-365)),isoDate(addDays(new Date(),730))).forEach(o=>exhibitions.push({CANAL:CHANNELS[channel].name,DATA:o.date,HORA:o.start,DURACAO:o.duration,PROGRAMA_ID:o.programId,PROGRAMA:o.title,TEMPORADA:o.season,EPISODIO:o.episodeNumber,TITULO_EPISODIO:o.episodeTitle,TIPO:o.type,REPRISE:o.isRerun?'Sim':'Não'})));
     return {programs:programRows,seasons:seasonRows,episodes:episodeRows,rights:rightRows,exhibitions};
   }
-  function serializeGlobal(){requireAdmin();return {schemaVersion:VERSION,type:'ebc-grade-global',savedAt:new Date().toISOString(),savedBy:session.user,globalCatalog:clone(state.globalCatalog),colorGroups:clone(state.colorGroups),imports:clone(state.imports),audit:clone(state.audit),users:clone(state.users),preferences:clone(state.preferences),backups:clone(state.backups)};}
-  function serializeChannel(channel=session.channel){requireChannelAccess(channel);return {schemaVersion:VERSION,type:'ebc-grade-channel',channel,savedAt:new Date().toISOString(),savedBy:session.user,data:clone(state.channels[channel])};}
+  function serializeGlobal(){requireAdmin();return {schemaVersion:VERSION,type:'ebc-grade-global',authoredBy:AUTHOR,savedAt:new Date().toISOString(),savedBy:session.user,globalCatalog:clone(state.globalCatalog),colorGroups:clone(state.colorGroups),imports:clone(state.imports),audit:clone(state.audit),users:clone(state.users),preferences:clone(state.preferences),backups:clone(state.backups)};}
+  function serializeChannel(channel=session.channel){requireChannelAccess(channel);return {schemaVersion:VERSION,type:'ebc-grade-channel',authoredBy:AUTHOR,channel,savedAt:new Date().toISOString(),savedBy:session.user,data:clone(state.channels[channel])};}
   function mergeGlobal(remote){
     validateGlobalData(remote);
     state.globalCatalog=clone(remote.globalCatalog||[]);const researchedTitles=enrichEpisodeTitles(state.globalCatalog);state.colorGroups=clone(remote.colorGroups||defaultColorGroups());state.imports=clone(remote.imports||[]).slice(0,100);state.audit=clone(remote.audit||[]).slice(0,600);
@@ -707,6 +756,6 @@
     const target=state.channels[channel];Object.entries(snapshot.grade||{}).forEach(([week,items])=>(items||[]).forEach(item=>target.occurrences.push({id:'graph_v4_'+String(item.id||uid('old')),channel,date:isoDate(addDays(week,DAY_INDEX[item.dia]??0)),start:item.hora||'00:00',duration:+item.dur||30,programId:'',title:item.obra||'Programa',season:item.temp||'',episodeNumber:item.ep||'',episodeTitle:item.subtit||'',type:item.isRepr?'rerun':(normalize(item.cat).includes('ao vivo')?'live':'recorded'),origin:legacyOrigin(item.cat),category:item.cat||'',isRerun:!!item.isRepr,source:'migration'})));
     audit('Versão online antiga migrada','Dados v4 convertidos para v6.','global');return true;
   }
-  const api={VERSION,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,episodeModeFor,getOccurrences,getWeek,conflicts,findNearestAvailableSlot,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,canUndoGrade,undoLastGradeChange,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
+  const api={VERSION,AUTHOR,AUTHOR_HANDLE,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,episodeModeFor,episodeSequence,sequenceStartOffset,getOccurrences,getWeek,conflicts,findNearestAvailableSlot,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,canUndoGrade,undoLastGradeChange,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
   window.EBCGrade=api;
 })();
