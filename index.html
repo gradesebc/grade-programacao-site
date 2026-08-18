@@ -5,15 +5,15 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta name="application-version" content="6.3.0">
-  <meta name="application-release-date" content="14/08/2026">
+  <meta name="application-version" content="6.4.0">
+  <meta name="application-release-date" content="18/08/2026">
   <meta name="author" content="Henrique Rude (HDut)">
   <meta name="dcterms.creator" content="Henrique Rude (HDut)">
   <meta name="generator" content="Sistema de Grade EBC — desenvolvido por Henrique Rude (HDut)">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://play.ebc.com.br https://public.ebc.com.br https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
   <title>Sistema de Grade - EBC</title>
-  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260814-v630">
-  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260814-v630">
+  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260818-v640">
+  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260818-v640">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -25,7 +25,7 @@
       <p class="muted">Entre com sua conta corporativa para acessar as grades compartilhadas.</p>
       <button id="login-button" class="button button-primary button-large" type="button"><span data-icon="microsoft"></span> Entrar com a Microsoft</button>
       <p id="login-status" class="helper" role="status">Autenticação segura pelo Microsoft Entra.</p>
-      <p class="app-version app-version-login" data-app-version>Versão 6.3.0 · 14/08/2026</p>
+      <p class="app-version app-version-login" data-app-version>Versão 6.4.0 · 18/08/2026</p>
     </section>
   </div>
   <div id="channel-overlay" class="overlay hidden" aria-labelledby="channel-title">
@@ -55,7 +55,7 @@
         <p id="sync-detail">Aguardando conexão com o OneDrive.</p>
         <button id="sync-now" class="text-button" type="button"><span data-icon="cloud"></span><span class="sidebar-action-label">Sincronizar agora</span></button>
       </div>
-      <div class="sidebar-version" data-version-short="v6.3.0" title="Versão instalada: 6.3.0 · 14/08/2026"><span data-app-version>Versão 6.3.0 · 14/08/2026</span></div>
+      <div class="sidebar-version" data-version-short="v6.4.0" title="Versão instalada: 6.4.0 · 18/08/2026"><span data-app-version>Versão 6.4.0 · 18/08/2026</span></div>
       <div class="sidebar-actions">
         <button id="switch-channel" class="button button-quiet" type="button"><span data-icon="switch"></span><span class="sidebar-action-label">Trocar canal</span></button>
         <button id="logout-button" class="button button-quiet" type="button"><span data-icon="logout"></span><span class="sidebar-action-label">Sair</span></button>
@@ -114,7 +114,7 @@
         <div id="slot-hover-tooltip" class="slot-hover-tooltip"></div>
       </section>
       <section id="page-catalog" class="page" aria-labelledby="catalog-title">
-        <div class="page-heading"><div><p class="eyebrow">Base de conteúdos</p><h2 id="catalog-title">Programas e episódios</h2><p class="muted">Catálogo global combinado com os programas exclusivos deste canal.</p></div><div class="button-row catalog-heading-actions"><button id="color-groups" class="button button-secondary" type="button"><span data-icon="palette"></span> Cores dos programas</button><button id="new-program" class="button button-primary" type="button"><span data-icon="plus"></span> Novo programa</button></div></div>
+        <div class="page-heading"><div><p class="eyebrow">Base de conteúdos</p><h2 id="catalog-title">Programas e episódios</h2><p class="muted">Catálogo global combinado com os programas exclusivos deste canal.</p></div><div class="button-row catalog-heading-actions"><button id="enrich-catalog" class="button button-secondary" type="button" data-tooltip="Consulta o acervo público do TV Brasil Play e completa apenas os campos vazios"><span data-icon="search"></span> Buscar imagens e episódios</button><button id="color-groups" class="button button-secondary" type="button"><span data-icon="palette"></span> Cores dos programas</button><button id="new-program" class="button button-primary" type="button"><span data-icon="plus"></span> Novo programa</button></div></div>
         <div class="catalog-toolbar catalog-filters"><label class="search-field"><span data-icon="search"></span><input id="catalog-search" type="search" placeholder="Buscar programa, categoria, subgrupo, episódio ou contrato"></label><select id="catalog-scope" aria-label="Filtrar escopo"><option value="all">Global e canal</option><option value="global">Somente global</option><option value="channel">Somente este canal</option></select><select id="catalog-type" aria-label="Filtrar formato"><option value="all">Todos os formatos</option><option value="live">Ao vivo</option><option value="recorded">Gravado</option><option value="mixed">Misto</option><option value="unspecified">Sem definição</option></select><select id="catalog-origin" aria-label="Filtrar origem"><option value="all">Todas as origens</option><option value="own">Produção própria</option><option value="independent">Independente / RNCP</option><option value="licensed">Licenciado</option><option value="news">Jornalismo</option><option value="institutional">Institucional</option></select><select id="catalog-category" aria-label="Filtrar categoria"><option value="all">Todas as categorias</option></select><select id="catalog-subgroup" aria-label="Filtrar subgrupo"><option value="all">Todos os subgrupos</option></select><select id="catalog-content" aria-label="Filtrar episódios"><option value="all">Todos os cadastros</option><option value="episodes">Com episódios</option><option value="continuous">Programa contínuo</option><option value="empty">Sem episódios</option></select><select id="catalog-rights" aria-label="Filtrar vigência"><option value="all">Todas as vigências</option><option value="active">Vigência ativa</option><option value="expiring">Vence em 60 dias</option><option value="expired">Vencida</option><option value="none">Sem direitos cadastrados</option></select><select id="catalog-sort" aria-label="Ordenar catálogo"><option value="title">Ordenar por título</option><option value="expiry">Ordenar por vigência</option><option value="updated">Atualizados recentemente</option></select><select id="catalog-grouping" aria-label="Agrupar catálogo"><option value="none">Sem agrupamento</option><option value="category">Agrupar por categoria</option><option value="subgroup">Agrupar por subgrupo</option><option value="origin">Agrupar por origem</option><option value="color">Agrupar por grupo de cor</option></select><button id="clear-catalog-filters" class="button button-secondary" type="button">Limpar filtros</button></div>
         <div id="catalog-stats" class="metric-grid"></div>
         <div class="catalog-commandbar"><label class="catalog-select-all"><input id="catalog-select-visible" type="checkbox"> <span>Selecionar resultados visíveis</span></label><span id="catalog-selection-count" class="selection-count">Nenhum selecionado</span><div class="catalog-command-actions"><button id="catalog-bulk-edit" class="button button-primary" type="button" disabled>Editar selecionados</button><button id="catalog-clear-selection" class="button button-secondary" type="button" disabled>Limpar seleção</button><div class="catalog-view-switch" role="group" aria-label="Visualização do catálogo"><button class="icon-button active" data-catalog-view="list" type="button" aria-label="Visualização em lista" title="Lista">☰</button><button class="icon-button" data-catalog-view="cards" type="button" aria-label="Visualização em cartões" title="Cartões">▦</button><button class="icon-button" data-catalog-view="compact" type="button" aria-label="Visualização compacta" title="Compacta">≡</button></div></div></div>
@@ -148,7 +148,7 @@
         <div id="permission-notice" class="notice"></div>
         <article class="panel release-panel">
           <div><p class="eyebrow">Identificação do sistema</p><h3>Versão instalada</h3><p class="muted">Informe este número ao relatar uma dúvida, correção ou diferença entre computadores.</p></div>
-          <strong class="release-badge" data-app-version>Versão 6.3.0 · 14/08/2026</strong>
+          <strong class="release-badge" data-app-version>Versão 6.4.0 · 18/08/2026</strong>
         </article>
         <article class="panel admin-users-panel">
           <div class="panel-heading"><div><h3>Usuários e permissões</h3><p class="muted">Administradores acessam todos os canais; operadores recebem apenas os canais indicados.</p></div><button id="new-user-profile" class="button button-secondary" type="button"><span data-icon="plus"></span> Adicionar usuário</button></div>
@@ -183,10 +183,11 @@
   <div id="print-root" aria-hidden="true"></div>
   <script src="assets/vendor/xlsx.full.min.js?v=0.20.3"></script>
   <script src="assets/js/microsoft-graph.bundle.js?v=20260813-v624"></script>
-  <script src="assets/js/grade-core-v6.js?v=20260814-v630"></script>
+  <script src="assets/js/grade-core-v6.js?v=20260818-v640"></script>
   <script src="assets/js/graph-store-v6.js?v=20260812-sec3"></script>
-  <script src="assets/js/tvbrasil-program-artworks.js?v=20260814-v630"></script>
-  <script src="assets/js/tvbrasil-episode-titles.js?v=20260814-v630"></script>
-  <script src="assets/js/grade-app-v6.js?v=20260814-v630"></script>
+  <script src="assets/js/tvbrasil-program-artworks.js?v=20260818-v640"></script>
+  <script src="assets/js/tvbrasil-episode-titles.js?v=20260818-v640"></script>
+  <script src="assets/js/ebc-play-source.js?v=20260818-v640"></script>
+  <script src="assets/js/grade-app-v6.js?v=20260818-v640"></script>
 </body>
 </html>

@@ -28,7 +28,9 @@
       const pageKey=normalizePageUrl(directUrl);
       const mapped=Object.values(window.TVBRASIL_PROGRAM_ARTWORKS||{}).find(value=>normalizePageUrl(value?.page_url)===pageKey);
       if(mapped?.image_url)return mapped.image_url;
-      if(/\.(?:avif|gif|jpe?g|png|webp)(?:[?#].*)?$/i.test(directUrl)||/\/@@images\/|imagens\.ebc\.com\.br\//i.test(directUrl))return directUrl;
+      // Qualquer endereço HTTPS é aceito: quem decide se presta é o carregamento real
+      // da imagem em loadArtwork, que remove o fundo se falhar.
+      if(/^https:\/\//i.test(directUrl))return directUrl;
     }
     const linked=linkedArtworkIndex.get(C().normalize(programTitle));if(linked?.image_url)return linked.image_url;
     const name=String(artwork?.fileName||'').toLowerCase();if(!name)return'';if(artworkCache.has(name))return artworkCache.get(name);const pending=(async()=>{const file=(await artworkIndex()).get(name);if(!file||typeof graphLerArquivoBlob!=='function')return'';const blob=await graphLerArquivoBlob(file.id);if(!blob||blob.size>1024*1024||!String(blob.type||'image/webp').startsWith('image/'))return'';return URL.createObjectURL(blob);})().catch(err=>{console.warn('Imagem do programa indisponível',err);return'';});artworkCache.set(name,pending);return pending;
@@ -36,6 +38,19 @@
   function normalizedPageUrl(value){let clean=String(value||'').trim().split('#')[0].split('?')[0].toLowerCase();while(clean.endsWith('/'))clean=clean.slice(0,-1);return clean;}
   function safeHttpsUrl(value){try{const raw=String(value||''),parsed=new URL(raw);return parsed.protocol==='https:'&&!['"',"'","<",">"].some(char=>raw.includes(char));}catch(_){return false;}}
   function directArtworkUrl(value){const clean=normalizedPageUrl(value),extensions=['.avif','.gif','.jpg','.jpeg','.png','.webp'];return extensions.some(extension=>clean.endsWith(extension))||clean.includes('/@@images/')||clean.includes('imagens.ebc.com.br/');}
+  // Muitos servidores entregam imagem sem extensão no endereço. Em vez de adivinhar
+  // pelo formato do texto, carregamos de fato e vemos se vira uma imagem.
+  function carregaComoImagem(url,limite=8000){
+    return new Promise(resolve=>{
+      const probe=new Image();let resolvido=false;
+      const terminar=valor=>{if(resolvido)return;resolvido=true;probe.onload=probe.onerror=null;resolve(valor);};
+      probe.referrerPolicy='no-referrer';
+      probe.onload=()=>terminar(probe.naturalWidth>0&&probe.naturalHeight>0);
+      probe.onerror=()=>terminar(false);
+      setTimeout(()=>terminar(false),limite);
+      probe.src=url;
+    });
+  }
   function mappedArtworkPage(value){const normalized=normalizedPageUrl(value);return Object.values(window.TVBRASIL_PROGRAM_ARTWORKS||{}).some(item=>normalizedPageUrl(item?.page_url)===normalized);}
   function artworkPreferences(){try{return C().getPreferences();}catch(_){return {programArtworkEnabled:true,programArtworkOpacity:14};}}
   function clearRenderedArtwork(){$$('.has-program-artwork').forEach(element=>{element.classList.remove('has-program-artwork');element.style.removeProperty('--program-artwork');element.style.removeProperty('--program-artwork-opacity');});}
@@ -72,6 +87,50 @@
   }
   function validateHostingIdentity(identity){const hosted=String(hostingPrincipal?.userDetails||'').trim().toLowerCase(),graph=String(identity?.email||'').trim().toLowerCase();if(hosted.includes('@')&&graph&&hosted!==graph)throw new Error('A conta do site e a conta do OneDrive precisam ser a mesma.');}
   function toast(message,type=''){const el=document.createElement('div');el.className='toast '+type;el.textContent=message;$('#toast-region').append(el);setTimeout(()=>el.remove(),4200);}
+  // Enriquecimento pelo acervo do TV Brasil Play. Roda solto: cede o fio a cada
+  // programa para a interface continuar respondendo enquanto a pessoa navega.
+  let enriquecendo=false;
+  async function enriquecerCatalogo(){
+    if(enriquecendo)return;
+    if(!window.EBCPlay){toast('O módulo de consulta ao acervo não foi carregado.','error');return;}
+    const botao=$('#enrich-catalog');enriquecendo=true;if(botao){botao.disabled=true;botao.dataset.rotulo=botao.textContent;botao.textContent='Buscando...';}
+    let aplicados=0,comEpisodios=0,comDuracao=0,semCorrespondencia=0,falhas=0;
+    try{
+      toast('Consultando o acervo do TV Brasil Play. Pode continuar usando o sistema.','success');
+      const acervo=await window.EBCPlay.catalogo();
+      const programas=C().getCatalog().filter(programa=>programa.scope==='channel'||C().isAdmin());
+      for(let i=0;i<programas.length;i++){
+        const programa=programas[i];
+        try{
+          const sugestao=await window.EBCPlay.sugerirPara(programa,{catalogo:acervo,minimo:'alta'});
+          if(!sugestao){semCorrespondencia++;}
+          else if(Object.keys(sugestao.campos).length){C().saveProgram({...programa,...sugestao.campos},programa.scope);aplicados++;}
+          // Episódios custam uma requisição cada. Vale a pena quando falta título ou quando a
+          // duração ainda é a média que veio da planilha (todos os episódios com o mesmo número).
+          const media=+programa.defaultDuration||0;
+          const precisaEpisodios=sugestao&&C().episodeModeFor(programa)==='catalog'&&(programa.seasons||[]).some(t=>(t.episodes||[]).some(e=>!String(e.title||'').trim()||!+e.duration||+e.duration===media));
+          if(precisaEpisodios){
+            const vindo=await window.EBCPlay.sugerirEpisodios(programa,{catalogo:acervo});
+            if(vindo){C().saveProgram({...C().getCatalog().find(p=>p.id===programa.id)||programa,seasons:vindo.seasons},programa.scope);comEpisodios++;comDuracao+=vindo.duracoes||0;}
+          }
+        }catch(err){falhas++;console.warn('Falha ao enriquecer',programa.title,err);}
+        if(botao&&i%10===0)botao.textContent='Buscando... '+Math.round((i/programas.length)*100)+'%';
+        await new Promise(resolve=>setTimeout(resolve,0));
+      }
+      renderCatalog();
+      const partes=[aplicados+' programa(s) completados'];
+      if(comEpisodios)partes.push(comEpisodios+' com episódios');
+      if(comDuracao)partes.push(comDuracao+' duração(ões) reais no lugar da média da planilha');
+      if(semCorrespondencia)partes.push(semCorrespondencia+' sem correspondência no acervo');
+      if(falhas)partes.push(falhas+' falha(s) de consulta');
+      toast(partes.join(' · '),aplicados||comEpisodios?'success':'');
+    }catch(err){
+      console.error(err);
+      toast('Não foi possível consultar o acervo do TV Brasil Play agora. O cadastro manual continua disponível.','error');
+    }finally{
+      enriquecendo=false;if(botao){botao.disabled=false;botao.textContent=botao.dataset.rotulo||'Buscar imagens e episódios';}
+    }
+  }
   function openModal({title,kicker='Sistema de Grade',body='',footer='',wide=false}){modalReturnFocus=document.activeElement;$('#app-shell').setAttribute('inert','');$('#modal-title').textContent=title;$('#modal-kicker').textContent=kicker;$('#modal-body').innerHTML=body;$('#modal-footer').innerHTML=footer;$('#app-modal').style.width=wide?'min(920px,calc(100% - 32px))':'';$('#app-modal').classList.remove('hidden');$('#modal-backdrop').classList.remove('hidden');renderIcons($('#app-modal'));setTimeout(()=>$('#app-modal input, #app-modal select, #modal-close')?.focus(),20);}
   function closeModal(){$('#app-modal').classList.add('hidden');$('#modal-backdrop').classList.add('hidden');$('#modal-body').innerHTML='';$('#modal-footer').innerHTML='';if(!$('#app-shell').classList.contains('hidden'))$('#app-shell').removeAttribute('inert');modalReturnFocus?.focus?.();modalReturnFocus=null;}
   function trapModalFocus(event){
@@ -116,7 +175,7 @@
     $('#week-picker').addEventListener('change',event=>{if(event.target.value){ui.week=C().isoDate(C().startOfWeek(event.target.value));ui.day=Math.max(0,Math.min(6,Math.round((C().parseLocalDate(event.target.value)-C().startOfWeek(event.target.value))/86400000)));renderGrade();}});
     $('#back-to-week').addEventListener('click',()=>{ui.view='week';renderGrade();});$('#previous-day').addEventListener('click',()=>moveFocusedDay(-1));$('#next-day').addEventListener('click',()=>moveFocusedDay(1));
     $('#grade-search').addEventListener('input',event=>{ui.search=C().normalize(event.target.value);applyCardFilters();});$('#hide-unmatched').addEventListener('change',event=>{ui.hideUnmatched=event.target.checked;applyCardFilters();});$('#clear-filters').addEventListener('click',()=>{ui.filters.clear();ui.search='';ui.hideUnmatched=false;$('#grade-search').value='';$('#hide-unmatched').checked=false;renderFilters();applyCardFilters();});
-    $('#grade-undo').addEventListener('click',undoGrade);$('#new-schedule').addEventListener('click',()=>openScheduleForm());$('#new-program').addEventListener('click',()=>openProgramForm());$('#color-groups').addEventListener('click',()=>openColorGroupsManager());
+    $('#grade-undo').addEventListener('click',undoGrade);$('#new-schedule').addEventListener('click',()=>openScheduleForm());$('#new-program').addEventListener('click',()=>openProgramForm());$('#color-groups').addEventListener('click',()=>openColorGroupsManager());$('#enrich-catalog')?.addEventListener('click',enriquecerCatalogo);
     $('#catalog-search').addEventListener('input',renderCatalog);['catalog-scope','catalog-type','catalog-origin','catalog-content','catalog-rights','catalog-sort','catalog-category','catalog-subgroup','catalog-grouping'].forEach(id=>$('#'+id).addEventListener('change',renderCatalog));$('#clear-catalog-filters').addEventListener('click',clearCatalogFilters);$('#metrics-period').addEventListener('change',renderMetrics);
     $('#catalog-select-visible').addEventListener('change',toggleVisibleCatalogSelection);$('#catalog-bulk-edit').addEventListener('click',openBulkProgramEditor);$('#catalog-clear-selection').addEventListener('click',()=>{ui.catalogSelected.clear();renderCatalog();});$$('[data-catalog-view]').forEach(button=>button.addEventListener('click',()=>setCatalogView(button.dataset.catalogView)));
     $('#import-file').addEventListener('change',event=>{$('#import-file-name').textContent=event.target.files[0]?.name||'Nenhum arquivo selecionado';ui.importData=null;$('#confirm-import').disabled=true;});
@@ -129,6 +188,13 @@
     $('#grade-zoom').addEventListener('input',event=>setGradeZoom(+event.target.value));$('#zoom-out').addEventListener('click',()=>setGradeZoom(ui.zoom-10));$('#zoom-in').addEventListener('click',()=>setGradeZoom(ui.zoom+10));$('#density-toggle').addEventListener('click',()=>setGradeZoom(ui.zoom>=175?40:ui.zoom+10));
     window.addEventListener('scroll',()=>{updateGradeSticky();updateFloatingDayHeader();},{passive:true});window.addEventListener('resize',updateFloatingDayHeader,{passive:true});
     window.addEventListener('ebc:sync-status',event=>updateSync(event.detail));window.addEventListener('ebc:remote-loaded',renderAll);
+    // Alguém salvou junto e o store uniu as duas versões: a tela precisa refletir o resultado.
+    window.addEventListener('ebc:merged-remote',event=>{
+      renderAll();
+      const {incoming=0,conflicts=0}=event.detail||{};
+      if(conflicts)toast(conflicts+' item(ns) foram editados por você e por outra pessoa ao mesmo tempo. A sua versão foi mantida.','error');
+      else if(incoming)toast(incoming+' alteração(ões) de outra pessoa foram incorporadas à grade.','success');
+    });
     window.addEventListener('afterprint',()=>{$('#print-root').innerHTML='';});
   }
   async function logoutSafely(){
@@ -302,7 +368,9 @@
       const base={channel:C().session.channel,programId:program.id,title:program.title,startsAt:$('#schedule-date').value,start:$('#schedule-time').value,duration:+$('#schedule-duration').value||program.defaultDuration||30,type:$('#schedule-type').value,origin:program.origin||$('#schedule-origin').value,category:program.category||'',episodeMode,selectedSeasons,startEpisodeId,startEpisode:episodeMode==='continuous'?(+$('#schedule-start-episode')?.value||program.episodeCounter||1):1};
       if($('#schedule-mode').value==='manual'){
         const sequence=episodeMode==='catalog'?C().episodeSequence(program,selectedSeasons):[],chosen=sequence[C().sequenceStartOffset(base,sequence)]||null;
-        C().saveOccurrence({...base,date:base.startsAt,season:chosen?.season||'',episodeId:chosen?.id||'',episodeTitle:chosen?.title||'',episodeNumber:episodeMode==='continuous'?base.startEpisode:(chosen?.number||'')});
+        // Mesma regra da recorrência: metragem própria do episódio vence o slot escolhido.
+        const duracaoPropria=+chosen?.duration&&+chosen.duration!==+program.defaultDuration?Math.min(1440,+chosen.duration):0;
+        C().saveOccurrence({...base,date:base.startsAt,duration:duracaoPropria||base.duration,season:chosen?.season||'',episodeId:chosen?.id||'',episodeTitle:chosen?.title||'',episodeNumber:episodeMode==='continuous'?base.startEpisode:(chosen?.number||'')});
       }
       else{const weekdays=$$('input[name="weekdays"]:checked',$('#app-modal')).map(i=>i.value);const endMode=$('#schedule-end-mode').value,reruns=$('#schedule-rerun').checked?[{start:$('#rerun-time').value,dayOffset:+$('#rerun-offset').value}]:[];C().saveRule({...base,id:C().uid('rule'),weekdays,endMode,endsAt:endMode==='date'?$('#schedule-end-date').value:'',cycles:endMode==='cycles'?+$('#schedule-cycles').value||1:1,continuous:episodeMode==='continuous',rerunsAnyDay:!!$('#rerun-any-day')?.checked,reruns,active:true});}
       closeModal();renderAll();toast('Programação salva com sucesso.','success');
@@ -412,7 +480,7 @@
     if(program?.scope==='global'&&!C().isAdmin()){toast('Este programa global esta disponivel apenas para leitura.','error');return;}
     const p=C().clone(program||{title:'',scope:C().isAdmin()?'global':'channel',type:'unspecified',origin:'licensed',category:'',subgroups:[],cl:'',defaultDuration:30,episodeMode:'none',continuous:false,episodeCounter:1,seasons:[],rights:[]}),episodeMode=C().episodeModeFor(p),right=p.rights?.[0]||{},scopeOptions=C().isAdmin()?'<option value="global" '+(p.scope!=='channel'?'selected':'')+'>Todos os canais</option><option value="channel" '+(p.scope==='channel'?'selected':'')+'>Somente este canal</option>':'<option value="channel" selected>Somente este canal</option>';
     openModal({title:program?'Editar programa':'Novo programa',kicker:'Catálogo estruturado',wide:true,body:
-      '<div class="form-grid"><label>Nome do programa<input id="program-title" value="'+esc(p.title)+'" maxlength="300"></label><label>Disponibilidade<select id="program-scope">'+scopeOptions+'</select></label><label>Formato<select id="program-type"><option value="live" '+(p.type==='live'?'selected':'')+'>Ao vivo</option><option value="recorded" '+(p.type==='recorded'?'selected':'')+'>Gravado</option><option value="mixed" '+(p.type==='mixed'?'selected':'')+'>Misto</option><option value="unspecified" '+(p.type==='unspecified'?'selected':'')+'>Sem definição</option></select></label><label>Origem<select id="program-origin"><option value="own" '+(p.origin==='own'?'selected':'')+'>Produção própria</option><option value="independent" '+(p.origin==='independent'?'selected':'')+'>Produção independente</option><option value="licensed" '+(p.origin==='licensed'?'selected':'')+'>Licenciado</option><option value="news" '+(p.origin==='news'?'selected':'')+'>Jornalismo</option><option value="institutional" '+(p.origin==='institutional'?'selected':'')+'>Institucional</option></select></label><label>Classificação Indicativa (CL)<select id="program-cl"><option value="">Sem classificação</option><option value="Livre" '+(p.cl==='Livre'?'selected':'')+'>Livre</option><option value="6_anos" '+(p.cl==='6_anos'?'selected':'')+'>6 anos</option><option value="10_anos" '+(p.cl==='10_anos'?'selected':'')+'>10 anos</option><option value="12_anos" '+(p.cl==='12_anos'?'selected':'')+'>12 anos</option><option value="14_anos" '+(p.cl==='14_anos'?'selected':'')+'>14 anos</option><option value="16_anos" '+(p.cl==='16_anos'?'selected':'')+'>16 anos</option><option value="18_anos" '+(p.cl==='18_anos'?'selected':'')+'>18 anos</option></select></label><label>Categoria principal<input id="program-category" value="'+esc(p.category)+'" maxlength="200" placeholder="Ex.: Documentário"></label><label>Subgrupos / etiquetas<input id="program-subgroups" value="'+esc((p.subgroups||[]).join('; '))+'" maxlength="1000" placeholder="Ex.: Música; Cultura; Faixa da tarde"><span class="helper">Separe vários subgrupos por ponto e vírgula.</span></label><label>Imagem externa (URL HTTPS)<input id="program-artwork-url" type="url" value="'+esc(p.artwork?.url||'')+'" maxlength="1900" placeholder="https://servidor/imagem.jpg"><span class="helper">Use o endereço HTTPS direto de .jpg, .png ou .webp. Página comum só funciona quando já está mapeada. <a id="program-artwork-search" target="_blank" rel="noopener noreferrer">Pesquisar referência na web</a>. O PDF não utiliza a imagem.</span></label><label>Grupo de cor<select id="program-color-group">'+colorGroupOptions(p.colorGroupId)+'</select><span id="program-color-help" class="color-selection-preview">Automático pela classificação</span></label><label>Duração padrão (min)<input id="program-duration" type="number" min="1" max="1440" value="'+esc(p.defaultDuration||30)+'"></label></div>'+
+      '<div class="form-grid"><label>Nome do programa<input id="program-title" value="'+esc(p.title)+'" maxlength="300"></label><label>Disponibilidade<select id="program-scope">'+scopeOptions+'</select></label><label>Formato<select id="program-type"><option value="live" '+(p.type==='live'?'selected':'')+'>Ao vivo</option><option value="recorded" '+(p.type==='recorded'?'selected':'')+'>Gravado</option><option value="mixed" '+(p.type==='mixed'?'selected':'')+'>Misto</option><option value="unspecified" '+(p.type==='unspecified'?'selected':'')+'>Sem definição</option></select></label><label>Origem<select id="program-origin"><option value="own" '+(p.origin==='own'?'selected':'')+'>Produção própria</option><option value="independent" '+(p.origin==='independent'?'selected':'')+'>Produção independente</option><option value="licensed" '+(p.origin==='licensed'?'selected':'')+'>Licenciado</option><option value="news" '+(p.origin==='news'?'selected':'')+'>Jornalismo</option><option value="institutional" '+(p.origin==='institutional'?'selected':'')+'>Institucional</option></select></label><label>Classificação Indicativa (CL)<select id="program-cl"><option value="">Sem classificação</option><option value="Livre" '+(p.cl==='Livre'?'selected':'')+'>Livre</option><option value="6_anos" '+(p.cl==='6_anos'?'selected':'')+'>6 anos</option><option value="10_anos" '+(p.cl==='10_anos'?'selected':'')+'>10 anos</option><option value="12_anos" '+(p.cl==='12_anos'?'selected':'')+'>12 anos</option><option value="14_anos" '+(p.cl==='14_anos'?'selected':'')+'>14 anos</option><option value="16_anos" '+(p.cl==='16_anos'?'selected':'')+'>16 anos</option><option value="18_anos" '+(p.cl==='18_anos'?'selected':'')+'>18 anos</option></select></label><label>Categoria principal<input id="program-category" value="'+esc(p.category)+'" maxlength="200" placeholder="Ex.: Documentário"></label><label>Subgrupos / etiquetas<input id="program-subgroups" value="'+esc((p.subgroups||[]).join('; '))+'" maxlength="1000" placeholder="Ex.: Música; Cultura; Faixa da tarde"><span class="helper">Separe vários subgrupos por ponto e vírgula.</span></label><label>Imagem externa (URL HTTPS)<input id="program-artwork-url" type="url" value="'+esc(p.artwork?.url||'')+'" maxlength="1900" placeholder="https://servidor/imagem.jpg"><span class="helper">Cole o endereço HTTPS direto da imagem, de qualquer site (distribuidora, Google Imagens, Bing Imagens, Prime Video etc.). O sistema testa se ela carrega antes de salvar. Use “Buscar imagens e episódios” no topo para preencher automaticamente pelo acervo da EBC quando disponível. <a id="program-artwork-search" target="_blank" rel="noopener noreferrer">Pesquisar referência na web</a>. O PDF não utiliza a imagem.</span></label><label>Grupo de cor<select id="program-color-group">'+colorGroupOptions(p.colorGroupId)+'</select><span id="program-color-help" class="color-selection-preview">Automático pela classificação</span></label><label>Duração padrão (min)<input id="program-duration" type="number" min="1" max="1440" value="'+esc(p.defaultDuration||30)+'"></label></div>'+
       '<section class="episode-mode-panel"><label class="field">Controle de episódios<select id="program-episode-mode"><option value="none" '+(episodeMode==='none'?'selected':'')+'>Não usa episódios</option><option value="continuous" '+(episodeMode==='continuous'?'selected':'')+'>Numeração contínua</option><option value="catalog" '+(episodeMode==='catalog'?'selected':'')+'>Temporadas e episódios cadastrados</option></select><span id="program-episode-help" class="helper"></span></label><div id="continuous-episode-fields" class="inline-fields"><label class="field">Próximo episódio<input id="program-counter" type="number" min="1" value="'+esc(p.episodeCounter||1)+'"></label></div></section>'+
       '<fieldset id="catalog-episode-fields" class="form-section"><legend>Temporadas e episódios</legend><div id="season-list"></div><button id="add-season" class="button button-secondary" type="button"><span data-icon="plus"></span> Adicionar temporada</button></fieldset>'+
       '<details><summary><strong>Direitos e contrato</strong></summary><div class="form-grid" style="margin-top:12px"><label>Contrato<input id="right-contract" value="'+esc(right.contract||'')+'"></label><label>Fim da vigência<input id="right-expiry" type="date" value="'+esc(right.endsAt||'')+'"></label><label>Limite de exibições<input id="right-limit" type="number" min="0" value="'+esc(right.exhibitionLimit??'')+'"></label><label class="toggle"><input id="right-reruns" type="checkbox" '+(right.rerunsCount!==false?'checked':'')+'> Reprises contam no limite</label></div></details>',
@@ -470,7 +538,7 @@
     try{
       const title=$('#program-title').value.trim();if(!title)throw new Error('Informe o nome do programa.');const episodeMode=$('#program-episode-mode').value,seasons=episodeMode==='catalog'?$$('.season-editor').map((card,index)=>{const previous=(original.seasons||[]).find(season=>season.id===card.dataset.id)||{};const episodes=$$('.episode-row',card).map(row=>({id:row.dataset.id,number:$('.episode-number',row).value.trim(),title:$('.episode-title',row).value.trim(),duration:+$('.episode-duration',row).value||+$('#program-duration').value||30,status:'available'})).filter(e=>e.number||e.title);return {...previous,id:card.dataset.id,number:$('.season-number',card).value.trim(),title:$('.season-title',card).value.trim(),order:index+1,episodeCount:episodes.length,episodes};}).filter(s=>s.number||s.title||s.episodes.length):[];
       const expiry=$('#right-expiry').value,limit=$('#right-limit').value,contract=$('#right-contract').value.trim(),existingRights=original.rights||[],remainingRights=existingRights.slice(1);const rights=expiry||limit||contract?[{...(existingRights[0]||{}),id:existingRights[0]?.id||C().uid('right'),contract,startsAt:existingRights[0]?.startsAt||'',endsAt:expiry,exhibitionLimit:limit===''?null:+limit,rerunsCount:$('#right-reruns').checked,channels:existingRights[0]?.channels||Object.keys(C().CHANNELS)},...remainingRights]:remainingRights;
-      const artworkUrlValue=$('#program-artwork-url').value.trim();if(artworkUrlValue&&!safeHttpsUrl(artworkUrlValue))throw new Error('A imagem precisa usar uma URL HTTPS válida.');if(artworkUrlValue&&!directArtworkUrl(artworkUrlValue)&&!mappedArtworkPage(artworkUrlValue))throw new Error('Esse endereço é de uma página. Cole o endereço direto do arquivo de imagem (.jpg, .png ou .webp).');const previousArtwork=original.artwork?.source==='user_catalog'?null:(original.artwork||null),scope=C().isAdmin()?$('#program-scope').value:'channel',item={...original,id:original.id||C().programId(title,seasons[0]?.number||'',contract),title,scope,type:$('#program-type').value,origin:$('#program-origin').value,cl:$('#program-cl').value,category:$('#program-category').value.trim(),subgroups:$('#program-subgroups').value.split(/[;,|]/).map(value=>value.trim()).filter(Boolean),colorGroupId:$('#program-color-group').value,artwork:artworkUrlValue?{url:artworkUrlValue,source:'user_catalog'}:previousArtwork,defaultDuration:Math.max(1,Math.min(1440,+$('#program-duration').value||30)),episodeMode,continuous:episodeMode==='continuous',episodeCounter:Math.max(1,+$('#program-counter').value||original.episodeCounter||1),seasons,rights};
+      const artworkUrlValue=$('#program-artwork-url').value.trim();if(artworkUrlValue&&!safeHttpsUrl(artworkUrlValue))throw new Error('A imagem precisa usar uma URL HTTPS válida.');if(artworkUrlValue&&!directArtworkUrl(artworkUrlValue)&&!mappedArtworkPage(artworkUrlValue)&&!(await carregaComoImagem(artworkUrlValue)))throw new Error('Esse endereço não devolveu uma imagem. Confira se é o endereço direto do arquivo (não o de uma página) e se ele abre sozinho no navegador.');const previousArtwork=original.artwork?.source==='user_catalog'?null:(original.artwork||null),scope=C().isAdmin()?$('#program-scope').value:'channel',item={...original,id:original.id||C().programId(title,seasons[0]?.number||'',contract),title,scope,type:$('#program-type').value,origin:$('#program-origin').value,cl:$('#program-cl').value,category:$('#program-category').value.trim(),subgroups:$('#program-subgroups').value.split(/[;,|]/).map(value=>value.trim()).filter(Boolean),colorGroupId:$('#program-color-group').value,artwork:artworkUrlValue?{url:artworkUrlValue,source:'user_catalog'}:previousArtwork,defaultDuration:Math.max(1,Math.min(1440,+$('#program-duration').value||30)),episodeMode,continuous:episodeMode==='continuous',episodeCounter:Math.max(1,+$('#program-counter').value||original.episodeCounter||1),seasons,rights};
       if(original.id&&original.scope&&original.scope!==scope)C().removeProgram(original.id,original.scope);C().saveProgram(item,scope);closeModal();renderAll();toast('Programa salvo no catálogo.','success');
     }catch(err){toast(err.message,'error');}
   }

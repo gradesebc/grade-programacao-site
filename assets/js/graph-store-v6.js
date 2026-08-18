@@ -5,7 +5,7 @@
  */
 (() => {
   'use strict';
-  const core=()=>window.EBCGrade;const DELAY=15000,VERSION_WINDOW_MINUTES=5,MAX_JSON_CHARS=15*1024*1024;let timer=null,connected=false,saving=false,versions=[];const knownSnapshots=new Map(),knownEtags=new Map();
+  const core=()=>window.EBCGrade;const DELAY=15000,VERSION_WINDOW_MINUTES=5,MAX_JSON_CHARS=15*1024*1024,MERGE_ATTEMPTS=2,PULL_DELAY=30000,PULL_MAX_FALHAS=3;let timer=null,pollTimer=null,connected=false,saving=false,versions=[],pullFalhasSeguidas=0;const knownSnapshots=new Map(),knownEtags=new Map();
   const safe=value=>core().slug(value).replace(/_+/g,'_');
   const dateFolder=date=>core().isoDate(date||new Date());
   const timeName=date=>{const d=date||new Date();return [String(d.getHours()).padStart(2,'0'),String(d.getMinutes()).padStart(2,'0'),String(d.getSeconds()).padStart(2,'0'),String(d.getMilliseconds()).padStart(3,'0')].join('-');};
@@ -40,22 +40,97 @@
   async function readJsonRecord(segments,name){const file=await findFile(segments,name);if(!file)return null;return {data:parseJson(await graphLerArquivo(file.id),name),file};}
   async function readJson(segments,name){return (await readJsonRecord(segments,name))?.data||null;}
   async function writeJson(segments,name,data,control={}){const folder=await graphObterPastaCaminho(segments,true),text=JSON.stringify(data,null,2);if(text.length>MAX_JSON_CHARS)throw new Error('Os dados excedem o limite seguro de 15 MB por arquivo.');return graphSalvarArquivo(folder.id,name,text,control);}
+  // Chamada quando o OneDrive recusa a gravação porque outra pessoa salvou antes:
+  // relê o remoto, funde registro a registro com o que está aqui e devolve a versão unida.
+  async function mergeWithRemote(scope,key,channel,isGlobal,statePath,mine){
+    const record=await readJsonRecord(statePath,'atual.json').catch(()=>null);
+    if(!record)return null;
+    const base=knownSnapshots.get(key)||null,theirs=record.data;
+    const result=isGlobal?core().mergeConcurrentGlobal(base,mine,theirs):core().mergeConcurrentChannel(base,mine,theirs);
+    if(isGlobal)core().applyMergedGlobal(result.data);else core().applyMergedChannel(channel,result.data);
+    const payload=isGlobal?core().serializeGlobal():core().serializeChannel(channel);
+    const {conflicts,incoming}=result.stats;
+    if(conflicts||incoming){
+      const partes=[];if(incoming)partes.push(incoming+' alteração(ões) de outra pessoa incorporada(s)');if(conflicts)partes.push(conflicts+' registro(s) editado(s) pelos dois — a sua versão prevaleceu');
+      status('saving','Unindo com outra edição',partes.join(' · '));
+      window.dispatchEvent(new CustomEvent('ebc:merged-remote',{detail:{scope,...result.stats}}));
+    }
+    return {payload,etag:record.file?.eTag};
+  }
   async function saveScope(scope,now){
     const channel=scope.startsWith('channel:')?scope.slice(8):core().session.channel,isGlobal=scope==='global';if(!isGlobal&&(!channel||!core().CHANNELS[channel]))return {saved:false,total:0};const key=scopeKey(scope,channel),data=isGlobal?core().serializeGlobal():core().serializeChannel(channel),changes=compareSnapshots(isGlobal?'global':'channel',knownSnapshots.get(key),data);if(!changes.length){knownSnapshots.set(key,data);return {saved:false,total:0};}
-    const user=safe(core().session.user||'usuario'),bucket=bucketStart(now),historyPath=isGlobal?['dados','v6','historico','global',dateFolder(bucket)]:['dados','v6','historico','canais',channel,dateFolder(bucket)],stamp=timeName(bucket)+'_'+user+'.json',existingRecord=await readJsonRecord(historyPath,stamp).catch(()=>null),existing=existingRecord?.data,refs=aggregateChanges(existing?.changeRefs,changes),summary=summarizeChanges(refs),historyData={...data,savedAt:now.toISOString(),savedBy:core().session.user||'Usuário',historyWindow:{minutes:VERSION_WINDOW_MINUTES,startedAt:bucket.toISOString(),endsAt:new Date(bucket.getTime()+VERSION_WINDOW_MINUTES*60000).toISOString()},changeSummary:summary,changeRefs:refs};
-    const statePath=isGlobal?['dados','v6','estado','global']:['dados','v6','estado','canais',channel],etag=knownEtags.get(key),control=etag?{ifMatch:etag}:{};
-    let savedItem;try{savedItem=await writeJson(statePath,'atual.json',{...data,changeSummary:summary},control);}catch(err){if(err?.status===409||err?.status===412)throw new Error('Outra pessoa salvou este canal antes de voce. Sincronize, revise as mudancas e tente novamente.');throw err;}
+    const user=safe(core().session.user||'usuario'),bucket=bucketStart(now),historyPath=isGlobal?['dados','v6','historico','global',dateFolder(bucket)]:['dados','v6','historico','canais',channel,dateFolder(bucket)],stamp=timeName(bucket)+'_'+user+'.json',existingRecord=await readJsonRecord(historyPath,stamp).catch(()=>null),existing=existingRecord?.data,refs=aggregateChanges(existing?.changeRefs,changes),summary=summarizeChanges(refs);
+    const statePath=isGlobal?['dados','v6','estado','global']:['dados','v6','estado','canais',channel];
+    let savedItem,payload={...data,changeSummary:summary},etag=knownEtags.get(key);
+    for(let attempt=0;;attempt++){
+      try{savedItem=await writeJson(statePath,'atual.json',payload,etag?{ifMatch:etag}:{});break;}
+      catch(err){
+        if((err?.status!==409&&err?.status!==412)||attempt>=MERGE_ATTEMPTS)throw err?.status===409||err?.status===412
+          ?new Error('Outra pessoa salvou junto com voce e nao foi possivel unir as duas versoes. Sincronize e tente novamente.'):err;
+        const merged=await mergeWithRemote(scope,key,channel,isGlobal,statePath,payload);
+        if(!merged)throw new Error('Outra pessoa salvou junto com voce e nao foi possivel unir as duas versoes. Sincronize e tente novamente.');
+        payload={...merged.payload,changeSummary:summary};etag=merged.etag;
+      }
+    }
     knownEtags.set(key,savedItem?.eTag||savedItem?.['@odata.etag']||etag);
-    await writeJson(historyPath,stamp,historyData,existingRecord?.file?.eTag?{ifMatch:existingRecord.file.eTag}:{});knownSnapshots.set(key,data);return {saved:true,...summary};
+    // O histórico precisa conter exatamente o estado final que chegou ao OneDrive,
+    // inclusive quando outra edição foi incorporada durante uma resposta 409/412.
+    // Essa mesma versão vira a nova base do próximo merge concorrente.
+    const finalSnapshot={...payload};delete finalSnapshot.changeSummary;
+    const historyData={...finalSnapshot,savedAt:now.toISOString(),savedBy:core().session.user||'Usuário',historyWindow:{minutes:VERSION_WINDOW_MINUTES,startedAt:bucket.toISOString(),endsAt:new Date(bucket.getTime()+VERSION_WINDOW_MINUTES*60000).toISOString()},changeSummary:summary,changeRefs:refs};
+    await writeJson(historyPath,stamp,historyData,existingRecord?.file?.eTag?{ifMatch:existingRecord.file.eTag}:{});knownSnapshots.set(key,finalSnapshot);return {saved:true,...summary};
   }
   async function saveNow(force=false){
     if(!available()||saving)return false;if(!core().hasDirty()&&!force)return true;saving=true;clearTimeout(timer);timer=null;status('saving','Salvando no OneDrive...','Aguarde a criação da versão compartilhada.');
     const now=new Date(),scopes=core().hasDirty()?core().consumeDirtyScopes():(core().session.channel?['channel:'+core().session.channel]:[]);
     if(!scopes.length){saving=false;status('saved','Tudo atualizado','Nenhuma alteração de dados para enviar.');return true;}
-    try{let changed=0;for(const scope of scopes){const result=await saveScope(scope,now);changed+=result?.total||0;}if(changed){localStorage.setItem('ebc_v6_last_saved',now.toISOString());status('saved','Salvo no OneDrive',now.toLocaleString('pt-BR')+' · '+changed+' item(ns) no bloco atual');}else status('saved','Tudo atualizado','Nenhuma alteração de dados para enviar.');return true;}
+    try{let changed=0;for(const scope of scopes){const result=await saveScope(scope,now);changed+=result?.total||0;}if(changed){localStorage.setItem('ebc_v6_last_saved',now.toISOString());status('saved','Salvo no OneDrive',now.toLocaleString('pt-BR')+' · '+changed+' item(ns) no bloco atual');}else status('saved','Tudo atualizado','Nenhuma alteração de dados para enviar.');startPolling();return true;}
     catch(err){core().restoreDirtyScopes(scopes);console.error('Falha no salvamento v6',err);status('error','Erro ao salvar online',err.message||'Os dados permanecem preservados neste navegador.');throw err;}finally{saving=false;if(core().hasDirty()){clearTimeout(timer);timer=setTimeout(()=>saveNow().catch(()=>{}),DELAY);}}
   }
   function schedule(){if(!connected)return;clearTimeout(timer);status('pending','Alterações pendentes','Salvamento automático em até 15 segundos.');timer=setTimeout(()=>saveNow().catch(()=>{}),DELAY);}
+  // Um modal aberto pode ter uma edição em andamento que ainda não foi salva (não passou por
+  // persist(), então hasDirty() não a vê). Se a busca em segundo plano precisar renovar o login
+  // nesse instante, o Microsoft Graph navega a página inteira para a tela de login e essa edição
+  // se perde sem aviso. Por isso a busca silenciosa nunca roda com um modal na tela.
+  function modalAberto(){
+    if(typeof document==='undefined')return false;
+    const modal=document.getElementById('app-modal');
+    return !!modal&&!modal.classList.contains('hidden');
+  }
+  // Busca silenciosa do que outras pessoas gravaram. Só roda com a aba visível, sem
+  // nada pendente para enviar, sem salvamento em curso e sem modal aberto — nunca atropela
+  // quem está editando.
+  async function pullRemote(){
+    const channel=core().session?.channel;
+    if(!available()||saving||core().hasDirty()||!channel||modalAberto())return false;
+    if(typeof document!=='undefined'&&document.visibilityState==='hidden')return false;
+    const key='channel:'+channel,path=['dados','v6','estado','canais',channel];
+    let record;
+    try{record=await readJsonRecord(path,'atual.json');}
+    catch(err){
+      // Falha persistente (login expirado, pasta indisponível, rede fora): para de tentar
+      // sozinho em vez de martelar o Graph a cada 30s para sempre sem o usuário saber.
+      if(++pullFalhasSeguidas>=PULL_MAX_FALHAS){stopPolling();status('error','Sincronização automática pausada','Não foi possível buscar alterações de outras pessoas. Use "Sincronizar agora" para tentar de novo.');}
+      return false;
+    }
+    pullFalhasSeguidas=0;
+    if(!record)return false;
+    const remoteEtag=record.file?.eTag;
+    if(remoteEtag&&remoteEtag===knownEtags.get(key))return false; // ninguém mexeu desde a última leitura
+    const base=knownSnapshots.get(key)||null,mine=core().serializeChannel(channel);
+    const {data,stats}=core().mergeConcurrentChannel(base,mine,record.data);
+    core().applyMergedChannel(channel,data);
+    knownSnapshots.set(key,core().serializeChannel(channel));knownEtags.set(key,remoteEtag);
+    if(stats.incoming||stats.removed||stats.conflicts)window.dispatchEvent(new CustomEvent('ebc:merged-remote',{detail:{scope:key,...stats}}));
+    return true;
+  }
+  function startPolling(){
+    pullFalhasSeguidas=0;
+    if(pollTimer||typeof setInterval!=='function')return;
+    pollTimer=setInterval(()=>{pullRemote().catch(err=>console.warn('Não foi possível buscar alterações remotas',err));},PULL_DELAY);
+    if(typeof document!=='undefined')document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')pullRemote().catch(()=>{});});
+  }
+  function stopPolling(){if(pollTimer){clearInterval(pollTimer);pollTimer=null;}}
   async function loadGlobal(){
     const record=await readJsonRecord(['dados','v6','estado','global'],'atual.json');if(record){core().mergeGlobal(record.data);knownSnapshots.set('global',record.data);knownEtags.set('global',record.file.eTag);return true;}return false;
   }
@@ -71,7 +146,7 @@
   }
   async function init(){
     if(typeof microsoftGraphConectado!=='function'||!microsoftGraphConectado()){status('offline','Aguardando login Microsoft','Entre com a conta EBC para ativar o salvamento online.');return false;}
-    status('saving','Conectando ao OneDrive...','Validando a pasta compartilhada.');try{await graphResolverPastaRaiz();connected=true;await loadGlobal();status('saved','OneDrive conectado','Salvamento automático online ativo.');return true;}catch(err){connected=false;console.error(err);status('error','OneDrive indisponível',err.message||'Não foi possível acessar a pasta compartilhada.');return false;}
+    status('saving','Conectando ao OneDrive...','Validando a pasta compartilhada.');try{await graphResolverPastaRaiz();connected=true;await loadGlobal();startPolling();status('saved','OneDrive conectado','Salvamento automático online ativo.');return true;}catch(err){connected=false;stopPolling();console.error(err);status('error','OneDrive indisponível',err.message||'Não foi possível acessar a pasta compartilhada.');return false;}
   }
   async function sync(){
     if(!connected&&!(await init()))return false;if(core().hasDirty())await saveNow();else{await loadGlobal();if(core().session.channel)await loadChannel(core().session.channel);}return true;
@@ -96,5 +171,5 @@
   }
   window.addEventListener('ebc:data-changed',schedule);
   window.addEventListener('beforeunload',event=>{if(core()?.hasDirty?.()){event.preventDefault();event.returnValue='';}});
-  window.EBCGraphStore={init,sync,saveNow,loadGlobal,loadChannel,listHistory,restoreVersion,saveBackup,get connected(){return connected;}};
+  window.EBCGraphStore={init,sync,saveNow,pullRemote,loadGlobal,loadChannel,listHistory,restoreVersion,saveBackup,get connected(){return connected;}};
 })();

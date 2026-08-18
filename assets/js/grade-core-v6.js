@@ -444,11 +444,21 @@
       free(date,start,duration){const [s,e,first,last]=bounds(date,start,duration);for(let day=first;day<=last;day++){const list=map.get(day);if(list&&list.some(slot=>s<slot.end&&e>slot.start))return false;}return true;}
     };
   }
+  // Um ciclo de filmes tem metragens diferentes: 75, 150, 110 minutos. Quando o episódio
+  // traz a sua própria duração, ela vence o slot da regra.
+  // Cuidado com o modelo de dados: o formulário grava a duração do episódio já preenchida
+  // com o padrão do programa quando o campo fica vazio. Então "ter duração" não basta —
+  // só tratamos como deliberada a duração que DIFERE do padrão do programa. Assim as
+  // grades antigas, em que todos os episódios herdaram o mesmo número, seguem intactas.
+  function episodeDuration(episode,program){
+    const propria=Math.max(0,+episode?.duration||0),padrao=Math.max(0,+program?.defaultDuration||0);
+    return propria&&propria!==padrao?Math.min(1440,propria):0;
+  }
   function ruleOccurrence(rule,date,index,program){
     const sequence=episodeSequence(program,rule.selectedSeasons||[]);const cycles=Math.max(1,+rule.cycles||1);const limit=sequence.length?sequence.length*cycles:Infinity;
     if(rule.endMode==='cycles'&&index>=limit)return null;if(rule.endsAt&&date>rule.endsAt)return null;
     const mode=rule.episodeMode||episodeModeFor(program),offset=sequenceStartOffset(rule,sequence),episode=mode==='catalog'&&sequence.length?sequence[(index+offset)%sequence.length]:null;const number=episode?.number||(mode==='continuous'?(+rule.startEpisode||1)+index:'');
-    return {id:'gen_'+rule.id+'_'+date,ruleId:rule.id,channel:rule.channel,date,occurrenceDate:date,occurrenceKind:'primary',start:rule.start,duration:+rule.duration||program?.defaultDuration||30,programId:rule.programId,title:rule.title||program?.title||'Programa',season:episode?.season||rule.season||'',episodeId:episode?.id||'',episodeNumber:number,episodeTitle:episode?.title||'',type:rule.type||program?.type||'recorded',origin:rule.origin||program?.origin||'licensed',category:rule.category||program?.category||'',isRerun:false,source:'rule'};
+    return {id:'gen_'+rule.id+'_'+date,ruleId:rule.id,channel:rule.channel,date,occurrenceDate:date,occurrenceKind:'primary',start:rule.start,duration:episodeDuration(episode,program)||+rule.duration||program?.defaultDuration||30,programId:rule.programId,title:rule.title||program?.title||'Programa',season:episode?.season||rule.season||'',episodeId:episode?.id||'',episodeNumber:number,episodeTitle:episode?.title||'',type:rule.type||program?.type||'recorded',origin:rule.origin||program?.origin||'licensed',category:rule.category||program?.category||'',isRerun:false,source:'rule'};
   }
   function occurrenceAnchorDate(item){return item?.occurrenceDate||item?.date||'';}
   function occurrenceKind(item){return item?.occurrenceKind||(item?.isRerun?'rerun':'primary');}
@@ -573,12 +583,27 @@
   }
   function getAlerts(){
     const today=parseLocalDate(new Date()),todayIso=isoDate(today),alerts=[],allCounts=new Map(),primaryCounts=new Map();
-    allowedChannelIds().forEach(channelId=>{const channel=state.channels[channelId],dates=[...channel.rules.map(r=>r.startsAt),...channel.occurrences.map(o=>o.date)].filter(Boolean).sort(),from=dates[0]||isoDate(addDays(today,-3650));getOccurrences(channelId,from,todayIso).forEach(item=>{allCounts.set(item.programId,(allCounts.get(item.programId)||0)+1);if(!item.isRerun)primaryCounts.set(item.programId,(primaryCounts.get(item.programId)||0)+1);});});
+    // Um contrato pode valer só para uma temporada. Por isso contamos as exibições duas
+    // vezes: pelo programa inteiro e por programa+temporada. Sem isso, um contrato da T2
+    // enxergaria também as exibições da T1 e acusaria limite estourado sem ter estourado.
+    const allBySeason=new Map(),primaryBySeason=new Map();
+    const seasonKey=(programId,season)=>programId+' '+String(season??'').trim();
+    const bump=(map,key)=>map.set(key,(map.get(key)||0)+1);
+    allowedChannelIds().forEach(channelId=>{const channel=state.channels[channelId],dates=[...channel.rules.map(r=>r.startsAt),...channel.occurrences.map(o=>o.date)].filter(Boolean).sort(),from=dates[0]||isoDate(addDays(today,-3650));getOccurrences(channelId,from,todayIso).forEach(item=>{bump(allCounts,item.programId);bump(allBySeason,seasonKey(item.programId,item.season));if(!item.isRerun){bump(primaryCounts,item.programId);bump(primaryBySeason,seasonKey(item.programId,item.season));}});});
     getCatalog().forEach(program=>{
       if(!program.title||!program.defaultDuration)alerts.push({id:uid('al'),type:'incomplete',severity:'warning',programId:program.id,title:program.title||'Programa sem nome',message:'Cadastro incompleto: confira título e duração.',scope:program.scope});
       (program.rights||[]).forEach(right=>{
-        if(right.endsAt){const days=Math.ceil((parseLocalDate(right.endsAt)-today)/86400000);if(days<0&&days>=-30)alerts.push({id:uid('al'),type:'expired',severity:'critical',programId:program.id,title:program.title,message:'Vigência encerrada há '+Math.abs(days)+' dia(s).',date:right.endsAt,scope:program.scope});else if(days< -30)alerts.push({id:uid('al'),type:'expired',severity:'history',programId:program.id,title:program.title,message:'Vigência encerrada há '+Math.abs(days)+' dia(s).',date:right.endsAt,scope:program.scope,historical:true});else if(days>=0&&days<=60)alerts.push({id:uid('al'),type:'expiring',severity:days<=15?'critical':'warning',programId:program.id,title:program.title,message:days===0?'Vigência termina hoje.':'Vigência termina em '+days+' dia(s).',date:right.endsAt,scope:program.scope});}
-        if(Number.isFinite(+right.exhibitionLimit)){const used=(right.rerunsCount===false?primaryCounts:allCounts).get(program.id)||0,left=+right.exhibitionLimit-used;if(left<=2)alerts.push({id:uid('al'),type:'limit',severity:left<=0?'critical':'warning',programId:program.id,title:program.title,message:left<0?'Limite excedido em '+Math.abs(left)+' exibição(ões).':left+' exibição(ões) disponível(is).',detail:used+' de '+right.exhibitionLimit+' utilizadas',scope:program.scope});}
+        // Quando o contrato é de uma temporada específica, o alerta precisa dizer qual —
+        // senão dois contratos do mesmo programa geram avisos visualmente idênticos.
+        const daTemporada=String(right.season??'').trim(),prefixo=daTemporada?'Temporada '+daTemporada+': ':'';
+        if(right.endsAt){const days=Math.ceil((parseLocalDate(right.endsAt)-today)/86400000);if(days<0&&days>=-30)alerts.push({id:uid('al'),type:'expired',severity:'critical',programId:program.id,title:program.title,season:daTemporada,message:prefixo+'Vigência encerrada há '+Math.abs(days)+' dia(s).',date:right.endsAt,scope:program.scope});else if(days< -30)alerts.push({id:uid('al'),type:'expired',severity:'history',programId:program.id,title:program.title,season:daTemporada,message:prefixo+'Vigência encerrada há '+Math.abs(days)+' dia(s).',date:right.endsAt,scope:program.scope,historical:true});else if(days>=0&&days<=60)alerts.push({id:uid('al'),type:'expiring',severity:days<=15?'critical':'warning',programId:program.id,title:program.title,season:daTemporada,message:prefixo+(days===0?'Vigência termina hoje.':'Vigência termina em '+days+' dia(s).'),date:right.endsAt,scope:program.scope});}
+        if(Number.isFinite(+right.exhibitionLimit)){
+          // Contrato preso a uma temporada conta só as exibições daquela temporada.
+          const temporada=String(right.season??'').trim(),porTemporada=temporada!=='';
+          const contagem=right.rerunsCount===false?(porTemporada?primaryBySeason:primaryCounts):(porTemporada?allBySeason:allCounts);
+          const used=contagem.get(porTemporada?seasonKey(program.id,temporada):program.id)||0,left=+right.exhibitionLimit-used;
+          if(left<=2)alerts.push({id:uid('al'),type:'limit',severity:left<=0?'critical':'warning',programId:program.id,title:program.title,season:temporada,message:(porTemporada?'Temporada '+temporada+': ':'')+(left<0?'Limite excedido em '+Math.abs(left)+' exibição(ões).':left+' exibição(ões) disponível(is).'),detail:used+' de '+right.exhibitionLimit+' utilizadas'+(right.contract?' · '+right.contract:''),scope:program.scope});
+        }
       });
     });
     const start=isoDate(startOfWeek(new Date())),items=getWeek(session.channel,start);
@@ -744,11 +769,95 @@
   }
   function serializeGlobal(){requireAdmin();return {schemaVersion:VERSION,type:'ebc-grade-global',authoredBy:AUTHOR,savedAt:new Date().toISOString(),savedBy:session.user,globalCatalog:clone(state.globalCatalog),colorGroups:clone(state.colorGroups),imports:clone(state.imports),audit:clone(state.audit),users:clone(state.users),preferences:clone(state.preferences),backups:clone(state.backups)};}
   function serializeChannel(channel=session.channel){requireChannelAccess(channel);return {schemaVersion:VERSION,type:'ebc-grade-channel',authoredBy:AUTHOR,channel,savedAt:new Date().toISOString(),savedBy:session.user,data:clone(state.channels[channel])};}
+  // Nunca confia cegamente em papel/canais vindos de um arquivo remoto: role vira um dos dois
+  // valores válidos, e canais são filtrados contra os canais que realmente existem.
+  function sanitizeUsers(users){
+    return Object.fromEntries(Object.entries(users||{}).map(([email,profile])=>{const key=String(email||'').trim().toLowerCase(),role=profile?.role==='Administrador'?'Administrador':'Operador',channels=(profile?.channels||[]).filter(id=>CHANNELS[id]);return [key,{name:String(profile?.name||key),email:key,role,channels:role==='Administrador'?Object.keys(CHANNELS):channels}];}).filter(([email])=>email.includes('@')));
+  }
   function mergeGlobal(remote){
     validateGlobalData(remote);
     state.globalCatalog=clone(remote.globalCatalog||[]);const researchedTitles=enrichEpisodeTitles(state.globalCatalog);state.colorGroups=clone(remote.colorGroups||defaultColorGroups());state.imports=clone(remote.imports||[]).slice(0,100);state.audit=clone(remote.audit||[]).slice(0,600);
-    state.users=Object.fromEntries(Object.entries(remote.users||{}).map(([email,profile])=>{const key=String(email||'').trim().toLowerCase(),role=profile?.role==='Administrador'?'Administrador':'Operador',channels=(profile?.channels||[]).filter(id=>CHANNELS[id]);return [key,{name:String(profile?.name||key),email:key,role,channels:role==='Administrador'?Object.keys(CHANNELS):channels}];}).filter(([email])=>email.includes('@')));
+    state.users=sanitizeUsers(remote.users);
     const remotePreferences=remote.preferences&&typeof remote.preferences==='object'&&!Array.isArray(remote.preferences)?remote.preferences:{};state.preferences={...defaultPreferences(),...clone(remotePreferences)};state.preferences.programArtworkEnabled=state.preferences.programArtworkEnabled!==false;state.preferences.programArtworkOpacity=Math.max(5,Math.min(90,+state.preferences.programArtworkOpacity||14));state.backups=clone(remote.backups||[]).slice(0,50);if(researchedTitles)persist("global");else cachePut(stateCacheKey(),state);return true;
+  }
+  // ---------------------------------------------------------------------------
+  // Merge de três vias para edição simultânea.
+  // base = versão que este navegador carregou; mine = o que editei; theirs = o que
+  // outra pessoa gravou enquanto isso. Quem mexeu num registro ganha aquele registro;
+  // quando os dois mexeram no MESMO registro, o local prevalece e o caso é contado.
+  // ---------------------------------------------------------------------------
+  const sameValue=(a,b)=>JSON.stringify(a??null)===JSON.stringify(b??null);
+  function mergeKeyed(base,mine,theirs,stats){
+    const keyOf=(item,index)=>{const id=item?.id;return id===undefined||id===null||id===''?'#'+stableHash(JSON.stringify(item??index)):String(id);};
+    const index=list=>new Map((list||[]).map((item,i)=>[keyOf(item,i),item]));
+    const b=index(base),m=index(mine),t=index(theirs),out=[],seen=new Set();
+    for(const key of [...m.keys(),...t.keys()]){
+      if(seen.has(key))continue;seen.add(key);
+      const inBase=b.has(key),inMine=m.has(key),inTheirs=t.has(key),bv=b.get(key),mv=m.get(key),tv=t.get(key);
+      if(inMine&&!inTheirs){if(inBase&&sameValue(bv,mv)){stats.removed++;continue;}out.push(mv);continue;}
+      if(!inMine&&inTheirs){if(inBase&&sameValue(bv,tv)){stats.removed++;continue;}out.push(tv);stats.incoming++;continue;}
+      if(sameValue(mv,tv)){out.push(mv);continue;}
+      const mineChanged=!inBase||!sameValue(bv,mv),theirsChanged=!inBase||!sameValue(bv,tv);
+      if(mineChanged&&theirsChanged){stats.conflicts++;out.push(mv);continue;}
+      if(theirsChanged){out.push(tv);stats.incoming++;continue;}
+      out.push(mv);
+    }
+    return out;
+  }
+  function mergeKeyedObject(base,mine,theirs,stats){
+    const toList=obj=>Object.entries(obj||{}).map(([id,value])=>({id,value}));
+    const merged=mergeKeyed(toList(base),toList(mine),toList(theirs),stats);
+    return Object.fromEntries(merged.map(entry=>[entry.id,entry.value]));
+  }
+  function mergeObjectFields(base,mine,theirs,defaults,stats){
+    const b={...defaults,...clone(base||{})},m={...defaults,...clone(mine||{})},t={...defaults,...clone(theirs||{})},out={};
+    new Set([...Object.keys(b),...Object.keys(m),...Object.keys(t)]).forEach(key=>{
+      if(sameValue(m[key],t[key])){out[key]=clone(m[key]);return;}
+      const mineChanged=!sameValue(b[key],m[key]),theirsChanged=!sameValue(b[key],t[key]);
+      if(mineChanged&&theirsChanged){stats.conflicts++;out[key]=clone(m[key]);return;}
+      if(theirsChanged){stats.incoming++;out[key]=clone(t[key]);return;}
+      out[key]=clone(m[key]);
+    });
+    return out;
+  }
+  function mergeConcurrentChannel(base,mine,theirs){
+    const stats={conflicts:0,incoming:0,removed:0};
+    const pick=(source,field)=>clone(source?.data?.[field]||source?.[field]||[]);
+    const data={};
+    ['catalog','rules','occurrences','exceptions','skipRanges'].forEach(field=>{
+      data[field]=mergeKeyed(pick(base,field),pick(mine,field),pick(theirs,field),stats);
+    });
+    data.updatedAt=new Date().toISOString();
+    return {data,stats};
+  }
+  function mergeConcurrentGlobal(base,mine,theirs){
+    const stats={conflicts:0,incoming:0,removed:0};
+    const pick=(source,field,fallback)=>clone(source?.[field]??fallback);
+    const merged={
+      globalCatalog:mergeKeyed(pick(base,'globalCatalog',[]),pick(mine,'globalCatalog',[]),pick(theirs,'globalCatalog',[]),stats),
+      colorGroups:mergeKeyed(pick(base,'colorGroups',[]),pick(mine,'colorGroups',[]),pick(theirs,'colorGroups',[]),stats),
+      imports:mergeKeyed(pick(base,'imports',[]),pick(mine,'imports',[]),pick(theirs,'imports',[]),stats),
+      users:mergeKeyedObject(pick(base,'users',{}),pick(mine,'users',{}),pick(theirs,'users',{}),stats),
+      // Auditoria é um log: junta os dois lados, ordena do mais novo e corta no limite.
+      audit:[...clone(mine?.audit||[]),...clone(theirs?.audit||[])].filter((entry,i,list)=>list.findIndex(other=>other.id===entry.id)===i).sort((a,b)=>String(b.at||'').localeCompare(String(a.at||''))).slice(0,600),
+      preferences:mergeObjectFields(base?.preferences,mine?.preferences,theirs?.preferences,defaultPreferences(),stats)
+    };
+    return {data:merged,stats};
+  }
+  // Aplica o resultado do merge ao estado local sem passar pelas validações de
+  // arquivo remoto: os dados já vieram de duas fontes que passaram por elas.
+  function applyMergedChannel(channelId,data){
+    requireChannelAccess(channelId);state.channels[channelId]=validateChannelData(data);gradeUndo.delete(channelId);cachePut(stateCacheKey(),state);return true;
+  }
+  function applyMergedGlobal(data){
+    // Mesmo padrão de mergeGlobal(): só administrador grava estado global, e a forma dos
+    // dados é validada mesmo vindo de um merge local — nunca confia em dado remoto sem checar.
+    requireAdmin();assertSafeTree(data,'Dados globais unidos');
+    state.globalCatalog=clone(requireArray(data.globalCatalog||[],'Catalogo global',LIMITS.globalCatalog));
+    state.colorGroups=clone(requireArray(data.colorGroups||defaultColorGroups(),'Grupos de cores',LIMITS.colorGroups));
+    state.imports=clone(data.imports||[]).slice(0,100);state.audit=clone(data.audit||[]).slice(0,600);
+    state.users=sanitizeUsers(data.users);state.preferences={...defaultPreferences(),...clone(data.preferences||{})};
+    cachePut(stateCacheKey(),state);return true;
   }
   function mergeChannel(remote){if(!remote||+remote.schemaVersion!==VERSION||!CHANNELS[remote.channel])throw new Error('Arquivo de canal incompatível.');requireChannelAccess(remote.channel);state.channels[remote.channel]=validateChannelData(remote.data||{});const researchedTitles=enrichEpisodeTitles(state.channels[remote.channel].catalog);gradeUndo.delete(remote.channel);if(researchedTitles)persist("channel");else cachePut(stateCacheKey(),state);return true;}
   function importLegacySnapshot(snapshot,channel=session.channel){
@@ -756,6 +865,6 @@
     const target=state.channels[channel];Object.entries(snapshot.grade||{}).forEach(([week,items])=>(items||[]).forEach(item=>target.occurrences.push({id:'graph_v4_'+String(item.id||uid('old')),channel,date:isoDate(addDays(week,DAY_INDEX[item.dia]??0)),start:item.hora||'00:00',duration:+item.dur||30,programId:'',title:item.obra||'Programa',season:item.temp||'',episodeNumber:item.ep||'',episodeTitle:item.subtit||'',type:item.isRepr?'rerun':(normalize(item.cat).includes('ao vivo')?'live':'recorded'),origin:legacyOrigin(item.cat),category:item.cat||'',isRerun:!!item.isRepr,source:'migration'})));
     audit('Versão online antiga migrada','Dados v4 convertidos para v6.','global');return true;
   }
-  const api={VERSION,AUTHOR,AUTHOR_HANDLE,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,episodeModeFor,episodeSequence,sequenceStartOffset,getOccurrences,getWeek,conflicts,findNearestAvailableSlot,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,canUndoGrade,undoLastGradeChange,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
+  const api={VERSION,AUTHOR,AUTHOR_HANDLE,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,episodeModeFor,episodeSequence,sequenceStartOffset,getOccurrences,getWeek,conflicts,findNearestAvailableSlot,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,canUndoGrade,undoLastGradeChange,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,mergeConcurrentChannel,mergeConcurrentGlobal,applyMergedChannel,applyMergedGlobal,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
   window.EBCGrade=api;
 })();
