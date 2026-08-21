@@ -302,3 +302,49 @@ body.theme-dark .active-filter-chip:hover{background:var(--surface)}
 .main-nav .nav-section-title{margin:14px 0 4px;padding:0 12px;font-size:.63rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(215,225,241,.55)}
 .main-nav .nav-section-title:first-child{margin-top:0}
 body.sidebar-collapsed .main-nav .nav-section-title{height:1px;margin:12px 10px;padding:0;overflow:hidden;color:transparent;background:rgba(255,255,255,.12);border-radius:1px}
+
+/* ===== Aproveitamento da folha no PDF =====
+   A4 retrato tem 297mm; com margem de 6mm sobram 285mm úteis. Descontando o
+   cabeçalho (~17mm), a linha de dias (5mm) e a legenda (~4mm), restam ~259mm para
+   as 96 linhas de 15 minutos: 2,65mm cada. Antes eram 1,75mm, então a grade
+   terminava muito antes do fim da página — sobrava papel e faltava espaço ao texto. */
+@media print{
+  .print-summary .print-grid tbody tr{height:2.65mm}
+  .print-summary .print-grid td{height:2.65mm;max-height:none}
+  .print-legible .print-grid tbody tr{height:5.3mm}
+  .print-legible .print-grid td{height:5.3mm;max-height:none}
+
+  /* Com a altura recuperada, o episódio volta a caber a partir de 30 minutos.
+     Só a faixa de 15 minutos segue apenas com o título: ali realmente não cabe. */
+  .print-summary .print-medium .print-episode,
+  .print-summary .print-compact .print-episode,
+  .print-legible .print-medium .print-episode,
+  .print-legible .print-compact .print-episode{display:block}
+
+  .print-summary .print-program{font-size:5pt;line-height:1.05;padding:.2mm .3mm}
+  .print-summary .print-program span{font-size:4.2pt}
+  .print-summary .print-short .print-title{font-size:4.6pt}
+  .print-summary .print-medium .print-title{font-size:5pt}
+  .print-legible .print-program{font-size:6.6pt;line-height:1.12}
+  .print-legible .print-program span{font-size:5.6pt}
+  .print-legible .print-short .print-title{font-size:6pt}
+}
+
+/* Aviso da busca automática de capa no cadastro do programa. */
+.artwork-status:empty{display:none}
+.artwork-status{margin-top:4px;font-size:.74rem;line-height:1.35}
+.artwork-status.buscando{color:var(--muted)}
+.artwork-status.achou{color:var(--success);font-weight:650}
+.artwork-status.vazio{color:var(--warning)}
+
+/* Varredura de imagens que faltam, na Administração. */
+.artwork-hunt-status{margin:10px 0}
+.artwork-hunt-bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.artwork-hunt-bar span{display:block;height:100%;width:0;border-radius:99px;background:var(--blue);transition:width .25s ease}
+.artwork-hunt-status p{margin:6px 0 0}
+.artwork-wrong{margin-top:8px;align-items:flex-start}
+.artwork-wrong .helper{display:block;margin-top:2px}
+
+/* Linha de abertura da tela de entrada: existe no HTML mas só é usada pela
+   proposta visual. No visual atual permanece oculta. */
+.login-lede{display:none}

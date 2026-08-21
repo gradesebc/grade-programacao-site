@@ -150,16 +150,94 @@
     return temporadas;
   }
 
+  // CAMADA 2 — mapa montado offline a partir dos sites da EBC (tvbrasil.ebc.com.br,
+  // ebc.com.br/imprensa e afins). Entra quando o acervo do Play nao tem o titulo ou
+  // nao tem capa. E consultado por titulo porque as URLs de programa da EBC nao seguem
+  // padrao previsivel: testamos "tvbrasil.ebc.com.br/<slug>" e volta 404.
+  function procurarNoMapaEbc(titulo) {
+    const mapa = window.TVBRASIL_PROGRAM_ARTWORKS || {};
+    const alvo = normalizar(titulo);
+    if (!alvo) return null;
+    let aproximado = null;
+    for (const [chave, valor] of Object.entries(mapa)) {
+      const imagem = String(valor?.image_url || '').trim();
+      if (!imagem || !/^https:\/\//i.test(imagem)) continue;
+      const nivel = classificarCorrespondencia(titulo, chave);
+      if (!nivel) continue;
+      if (nivel === 'exata') return { url: imagem, titulo: chave, confianca: nivel };
+      if (nivel === 'alta' && !aproximado) aproximado = { url: imagem, titulo: chave, confianca: nivel };
+    }
+    return aproximado;
+  }
+
+  // CAMADA 3 — busca aberta na Wikipedia (a API dela aceita chamada do navegador,
+  // com origin=*; a maioria dos sites nao aceita e por isso nao da para varrer a
+  // internet inteira daqui).
+  //
+  // CUIDADO QUE JUSTIFICA O CODIGO ABAIXO: a busca da Wikipedia SEMPRE devolve algo.
+  // Procurando "Caminhos da Reportagem" ela respondeu "Tonny Brasil" — outro assunto
+  // por completo. Uma imagem errada com cara de certa e pior do que nenhuma imagem,
+  // porque ninguem vai conferir. Por isso so aceitamos quando o titulo do ARTIGO bate
+  // com o titulo do programa pelo mesmo criterio conservador das outras camadas.
+  const WIKIPEDIA = 'https://pt.wikipedia.org/w/api.php';
+  async function procurarNaWikipedia(titulo) {
+    const limpo = String(titulo || '').trim();
+    if (limpo.length < 3) return null;
+    const url = WIKIPEDIA + '?action=query&format=json&origin=*&prop=pageimages&piprop=original'
+      + '&generator=search&gsrlimit=3&gsrsearch=' + encodeURIComponent(limpo);
+    const dados = await pegarJson(url);
+    const paginas = Object.values(dados?.query?.pages || {});
+    for (const pagina of paginas) {
+      const imagem = String(pagina?.original?.source || '').trim();
+      if (!imagem || !/^https:\/\//i.test(imagem)) continue;
+      const nivel = classificarCorrespondencia(limpo, pagina.title || '');
+      // 'media' nao entra: e justamente onde moram os falsos positivos.
+      if (nivel === 'exata' || nivel === 'alta') return { url: imagem, titulo: pagina.title, confianca: nivel };
+    }
+    return null;
+  }
+
   // Monta uma SUGESTAO. Nao grava nada: preenche apenas o que esta vazio no
   // cadastro e devolve a lista de campos tocados para a interface mostrar.
+  // Ordem das fontes: acervo do Play -> mapa dos sites da EBC -> Wikipedia -> manual.
   async function sugerirPara(programa, opcoes = {}) {
-    const achado = await procurarPrograma(programa?.title || '', opcoes);
-    if (!achado || (opcoes.minimo === 'alta' && achado.confianca === 'media')) return null;
+    let achado = null;
+    try { achado = await procurarPrograma(programa?.title || '', opcoes); }
+    catch (erro) { if (!opcoes.tolerarFalhaDeRede) throw erro; }
+    if (achado && opcoes.minimo === 'alta' && achado.confianca === 'media') achado = null;
+    const semImagem = !String(programa?.artwork?.url || '').trim() && !String(programa?.artwork?.fileName || '').trim();
+    if (!achado) {
+      if (!semImagem) return null;
+      // Sem correspondencia no Play: mapa da EBC e, por ultimo, a busca aberta.
+      let fonte = 'mapa_ebc', externa = procurarNoMapaEbc(programa?.title || '');
+      if (!externa && opcoes.buscaAberta !== false) {
+        fonte = 'wikipedia';
+        try { externa = await procurarNaWikipedia(programa?.title || ''); }
+        catch (_) { externa = null; }
+      }
+      if (!externa) return null;
+      return {
+        programId: programa?.id || '', title: programa?.title || '',
+        confianca: externa.confianca, fonte,
+        correspondente: { titulo: externa.titulo },
+        campos: { artwork: { url: externa.url, source: fonte === 'wikipedia' ? 'web' : 'ebc_site' } },
+        tocados: ['imagem']
+      };
+    }
     const conteudo = achado.conteudo, campos = {}, tocados = [];
     const vazio = valor => valor === undefined || valor === null || String(valor).trim() === '';
 
-    if (vazio(programa?.artwork?.url) && vazio(programa?.artwork?.fileName) && conteudo.capa) {
-      campos.artwork = { url: conteudo.capa, source: 'ebc_play' }; tocados.push('imagem');
+    let fonteDaCapa = 'ebc_play';
+    if (semImagem) {
+      // Play primeiro; se o titulo estiver la sem capa, desce para o mapa da EBC e,
+      // por ultimo, para a busca aberta.
+      let capa = conteudo.capa;
+      if (!capa) { const daEbc = procurarNoMapaEbc(programa?.title || ''); if (daEbc) { capa = daEbc.url; fonteDaCapa = 'ebc_site'; } }
+      if (!capa && opcoes.buscaAberta !== false) {
+        try { const daWeb = await procurarNaWikipedia(programa?.title || ''); if (daWeb) { capa = daWeb.url; fonteDaCapa = 'web'; } }
+        catch (_) { /* sem busca aberta agora; as outras fontes ja falharam */ }
+      }
+      if (capa) { campos.artwork = { url: capa, source: fonteDaCapa }; tocados.push('imagem'); }
     }
     if (vazio(programa?.cl)) {
       const cl = traduzirClassificacao(conteudo.classificacao);
@@ -174,6 +252,7 @@
       title: programa?.title || '',
       confianca: achado.confianca,
       similaridade: achado.similaridade,
+      fonte: campos.artwork ? fonteDaCapa : 'ebc_play',
       correspondente: { id: conteudo.id, titulo: conteudo.titulo, tipo: conteudo.tipo, internacional: conteudo.internacional },
       campos, tocados
     };

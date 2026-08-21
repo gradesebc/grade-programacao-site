@@ -4,83 +4,81 @@
  *
  * PROPOSTA VISUAL - camada opcional, DESLIGADA por padrao.
  * ------------------------------------------------------------------
- * Tudo aqui vive sob `body.visual-proposta`. Sem essa classe, este arquivo
- * nao muda absolutamente nada: o sistema continua exatamente como esta hoje.
- * Ligar/desligar e feito em Administracao > Aparencia (fica no navegador de
- * cada pessoa, nao e compartilhado e nao toca nos dados).
+ * Tudo aqui vive sob `body.visual-proposta`. Sem essa classe, este arquivo nao muda
+ * absolutamente nada. Liga e desliga em Administracao > Aparencia em teste.
  *
- * A estrategia e deliberada: em vez de reescrever a interface, redefinimos os
- * TOKENS que o CSS de producao ja consome (--navy, --blue, --ink, --canvas...).
- * Assim a linguagem visual muda por inteiro sem mexer no HTML nem no JavaScript,
- * e nenhuma funcionalidade se perde no caminho.
+ * A ESTRATEGIA: em vez de reescrever a interface, redefinimos os TOKENS que o CSS de
+ * producao ja consome (--navy, --blue, --ink, --canvas, --line...). A linguagem visual
+ * muda por inteiro sem tocar no HTML nem no JavaScript, e nenhuma funcionalidade se perde.
  *
- * Base: proposta de layout avaliada em 18/08/2026 (mockup_proposta.html).
- * Tipografia: Fraunces (titulos), Sora (interface), IBM Plex Mono (horarios),
- * todas hospedadas localmente em assets/fonts - a CSP e font-src 'self'.
+ * A INTENCAO: moderno no sentido EDITORIAL, nao no sentido tecnologico. A referencia e
+ * uma publicacao impressa bem feita - papel quente, fio de cabelo separando as coisas,
+ * tipografia com hierarquia de verdade, cor usada com parcimonia. Por isso aqui NAO tem
+ * gradiente de brilho, vidro fosco nem sombra em camadas: esse e o vocabulario de painel
+ * de controle de nave, e envelhece rapido. Um grade de TV publica merece parecer um
+ * documento, nao um videogame.
+ *
+ * Tipografia: Fraunces (titulos), Sora (interface), IBM Plex Mono (horarios), todas
+ * hospedadas em assets/fonts - a CSP e font-src 'self'.
  */
 
 /* ------------------------------------------------------------------ *
- * 1. Tokens - tema claro ("papel")
+ * 1. Tokens - edicao diurna (papel)
  * ------------------------------------------------------------------ */
 body.visual-proposta {
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
   --font-ui: "Sora", "Segoe UI", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
 
-  /* Papel quente no lugar do cinza-azulado frio. */
-  --canvas: #f4eee5;
-  --ink: #1d1a15;
-  --muted: #6b6355;
-  --line: #ddd2c2;
+  /* Papel levemente quente. Sem gradiente: papel nao brilha. */
+  --canvas: #f6f2ea;
+  --ink: #191713;
+  --muted: #6a6357;
+  --line: #ddd5c7;
+  --line-forte: #c3b8a4;
 
-  /* Azul da marca, mantido: e a identidade da EBC. */
-  --navy: #0e1626;
-  --blue: #2e6ac2;
-  --blue2: #1f4f9c;
-  --sky: #e7eefb;
+  --navy: #14181f;
+  --blue: #2b62b8;
+  --blue2: #1c4a92;
+  --sky: #e9eef8;
 
-  --brass: #b8862c;
-  --success: #14684a;
-  --warning: #96590a;
-  --danger: #a8271c;
+  --brass: #9a6f1e;
+  --success: #12634a;
+  --warning: #8a5209;
+  --danger: #a02418;
 
-  --surface: #fffdf9;
-  --surface-2: #f9f4ec;
-  --shadow: 22, 18, 12;
-  --radius: 16px;
-  --ease: cubic-bezier(.16, 1, .3, 1);
+  --surface: #fffdf8;
+  --surface-2: #f2ece2;
+  --radius: 10px;
+  --ease: cubic-bezier(.2, .7, .3, 1);
 
   font-family: var(--font-ui);
-  background:
-    radial-gradient(1100px 620px at 8% -12%, rgba(46, 106, 194, .10), transparent 62%),
-    radial-gradient(820px 460px at 108% -4%, rgba(184, 134, 44, .09), transparent 58%),
-    var(--canvas);
-  background-attachment: fixed;
+  background: var(--canvas);
+  color: var(--ink);
 }
 
-/* Sotaque por canal: cada grade se reconhece pela cor. O app ja escreve
-   data-channel no <body>; sem ele, fica o azul da TV Brasil. */
-body.visual-proposta[data-channel="tv_brasil"] { --blue: #2e6ac2; --blue2: #1f4f9c; }
-body.visual-proposta[data-channel="tv_brasil_internacional"] { --blue: #1384c9; --blue2: #0f6ba3; }
-body.visual-proposta[data-channel="gov"] { --blue: #0e6b45; --blue2: #0a5335; --sky: #e4f2ec; }
+/* Cada canal tem o seu sotaque, usado com parcimonia: estado ativo e destaque. */
+body.visual-proposta[data-channel="tv_brasil"] { --blue: #2b62b8; --blue2: #1c4a92; }
+body.visual-proposta[data-channel="tv_brasil_internacional"] { --blue: #10739f; --blue2: #0b5878; }
+body.visual-proposta[data-channel="gov"] { --blue: #0f6141; --blue2: #0a4a31; --sky: #e6f1ec; }
 
 /* ------------------------------------------------------------------ *
- * 2. Tokens - tema escuro (a "mesa de controle" da proposta)
+ * 2. Tokens - edicao noturna
  * ------------------------------------------------------------------ */
 body.visual-proposta.theme-dark {
-  --canvas: #0b1120;
-  --ink: #ece5d8;
-  --muted: #9a9384;
-  --line: #24314a;
-  --navy: #070d1a;
-  --sky: #16233c;
-  --surface: #111b2f;
-  --surface-2: #0d1526;
-  --shadow: 0, 0, 0;
-  background:
-    radial-gradient(1100px 620px at 8% -12%, rgba(46, 106, 194, .26), transparent 62%),
-    radial-gradient(820px 460px at 108% -4%, rgba(212, 168, 75, .13), transparent 58%),
-    var(--canvas);
+  --canvas: #14130f;
+  --ink: #ece6da;
+  --muted: #9b9384;
+  --line: #2e2a22;
+  --line-forte: #433d31;
+  --navy: #0d0c0a;
+  --sky: #1e2a3d;
+  --surface: #1b1915;
+  --surface-2: #201d18;
+  --blue: #6c9de0;
+  --blue2: #8fb6ea;
+  --brass: #c9a25a;
+  background: var(--canvas);
 }
 
 /* ------------------------------------------------------------------ *
@@ -88,76 +86,91 @@ body.visual-proposta.theme-dark {
  * ------------------------------------------------------------------ */
 body.visual-proposta h1,
 body.visual-proposta h2,
-body.visual-proposta .login-card h1,
-body.visual-proposta .page-heading h2,
-body.visual-proposta .grade-heading-row h2 {
+body.visual-proposta h3 {
   font-family: var(--font-display);
   font-weight: 560;
-  letter-spacing: -.015em;
-  line-height: 1.12;
+  letter-spacing: -.014em;
+  line-height: 1.1;
 }
-body.visual-proposta .page-heading h2,
-body.visual-proposta .grade-heading-row h2 { font-size: 1.9rem; }
+body.visual-proposta .page-heading h2 { font-size: 2.05rem; }
+body.visual-proposta .grade-heading-row h2,
+body.visual-proposta .command-week-label h2 { font-size: 1.05rem; letter-spacing: -.008em; }
+body.visual-proposta .topbar-title h1 { font-size: 1.3rem; }
+body.visual-proposta .login-card h1 { font-size: 2.5rem; }
 
+/* Antetitulo em versalete monoespacado, como marcador de secao de revista. */
 body.visual-proposta .eyebrow {
   font-family: var(--font-mono);
   font-weight: 500;
-  font-size: .68rem;
-  letter-spacing: .16em;
+  font-size: .66rem;
+  letter-spacing: .18em;
   color: var(--brass);
 }
-body.visual-proposta.theme-dark .eyebrow { color: #d4a84b; }
 
-/* Horarios em monoespaçada: numeros alinhados verticalmente na grade. */
+/* Um fio sob o titulo da pagina: separa sem precisar de caixa nem sombra. */
+body.visual-proposta .page-heading {
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+
+/* Horarios em monoespacada com numeros de largura fixa: as colunas se alinham. */
 body.visual-proposta .time-label,
 body.visual-proposta .print-time,
 body.visual-proposta .program-time,
 body.visual-proposta .week-number-badge,
 body.visual-proposta .chip-time,
-body.visual-proposta .metric strong {
+body.visual-proposta .metric strong,
+body.visual-proposta .on-air-left,
+body.visual-proposta .program-meta {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 
 /* ------------------------------------------------------------------ *
- * 4. Moldura: barra lateral e topo
+ * 4. Moldura
  * ------------------------------------------------------------------ */
 body.visual-proposta .sidebar {
-  background: linear-gradient(180deg, var(--navy), color-mix(in srgb, var(--navy) 82%, var(--blue2)));
+  background: var(--navy);
   border-right: 1px solid rgba(255, 255, 255, .07);
 }
 body.visual-proposta .nav-button {
-  border-radius: 12px;
-  font-weight: 500;
-  letter-spacing: .01em;
-  transition: background .18s var(--ease), color .18s var(--ease), transform .18s var(--ease);
+  position: relative;
+  border-radius: 8px;
+  font-weight: 450;
+  font-size: .88rem;
+  letter-spacing: .005em;
+  transition: background .16s var(--ease), color .16s var(--ease);
 }
-body.visual-proposta .nav-button:hover { transform: translateX(2px); }
 body.visual-proposta .nav-button.active {
-  background: linear-gradient(180deg, #fff, #f4eee5);
-  color: var(--navy);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, .3);
+  background: rgba(255, 255, 255, .1);
+  color: #fff;
+  box-shadow: none;
 }
+/* Marcador de secao ativa: um fio vertical, como a marca d'agua de uma pagina. */
 body.visual-proposta .nav-button.active::before {
   content: "";
   position: absolute;
-  left: -16px;
-  width: 3px;
-  height: 26px;
-  border-radius: 0 3px 3px 0;
+  left: -12px;
+  top: 12px;
+  bottom: 12px;
+  width: 2px;
   background: var(--brass);
 }
-body.visual-proposta .nav-button { position: relative; }
+body.visual-proposta .main-nav .nav-section-title {
+  font-family: var(--font-mono);
+  font-size: .6rem;
+  letter-spacing: .18em;
+  color: rgba(236, 230, 218, .42);
+}
 
 body.visual-proposta .topbar {
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  background: var(--canvas);
   border-bottom: 1px solid var(--line);
-  backdrop-filter: blur(14px) saturate(1.3);
+  backdrop-filter: none;
 }
-body.visual-proposta .topbar-title h1 { font-size: 1.35rem; }
 
 /* ------------------------------------------------------------------ *
- * 5. Superficies: paineis, cartoes, metricas
+ * 5. Superficies: fio de cabelo no lugar de sombra
  * ------------------------------------------------------------------ */
 body.visual-proposta .panel,
 body.visual-proposta .metric,
@@ -169,19 +182,22 @@ body.visual-proposta .filter-panel,
 body.visual-proposta .catalog-toolbar,
 body.visual-proposta .alert-toolbar {
   background: var(--surface);
-  border-color: var(--line);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  box-shadow: 0 1px 2px rgba(var(--shadow), .05), 0 12px 32px rgba(var(--shadow), .07);
+  box-shadow: none;
 }
-body.visual-proposta .metric strong { font-size: 2rem; font-weight: 600; letter-spacing: -.02em; }
-body.visual-proposta .metric span { font-family: var(--font-mono); font-size: .64rem; letter-spacing: .12em; }
+body.visual-proposta .catalog-row { transition: border-color .18s var(--ease); }
+body.visual-proposta .catalog-row:hover { border-color: var(--line-forte); box-shadow: none; }
+body.visual-proposta .catalog-row h3 { font-size: 1.02rem; }
 
-body.visual-proposta .catalog-row { transition: transform .2s var(--ease), box-shadow .2s var(--ease); }
-body.visual-proposta .catalog-row:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 2px 4px rgba(var(--shadow), .06), 0 18px 44px rgba(var(--shadow), .12);
+/* Numero grande, rotulo pequeno: hierarquia de ficha, nao de painel. */
+body.visual-proposta .metric strong { font-size: 1.85rem; font-weight: 500; letter-spacing: -.02em; }
+body.visual-proposta .metric span {
+  font-family: var(--font-mono);
+  font-size: .62rem;
+  letter-spacing: .14em;
+  color: var(--muted);
 }
-body.visual-proposta .catalog-row h3 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 560; }
 
 /* ------------------------------------------------------------------ *
  * 6. Controles
@@ -189,100 +205,107 @@ body.visual-proposta .catalog-row h3 { font-family: var(--font-display); font-si
 body.visual-proposta .button,
 body.visual-proposta .icon-button,
 body.visual-proposta .segmented {
-  border-radius: 12px;
-  font-weight: 600;
+  border-radius: 8px;
+  font-weight: 500;
   letter-spacing: .005em;
-  transition: transform .16s var(--ease), background .16s var(--ease), box-shadow .16s var(--ease);
+  box-shadow: none;
+  transition: background .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease);
 }
-body.visual-proposta .button:hover:not(:disabled),
-body.visual-proposta .icon-button:hover:not(:disabled) { transform: translateY(-1px); }
-body.visual-proposta .button-primary {
-  background: linear-gradient(180deg, var(--blue), var(--blue2));
-  box-shadow: 0 8px 20px color-mix(in srgb, var(--blue) 32%, transparent);
-}
+body.visual-proposta .button-primary { background: var(--blue2); border-color: var(--blue2); }
+body.visual-proposta .button-primary:hover { background: var(--blue); border-color: var(--blue); }
 body.visual-proposta .button-secondary,
 body.visual-proposta .icon-button {
   background: var(--surface);
-  border-color: var(--line);
+  border-color: var(--line-forte);
   color: var(--ink);
 }
 body.visual-proposta .button-secondary:hover,
-body.visual-proposta .icon-button:hover { background: var(--sky); border-color: var(--blue); }
+body.visual-proposta .icon-button:hover { background: var(--surface-2); border-color: var(--ink); color: var(--ink); }
 
 body.visual-proposta .filter-chip,
 body.visual-proposta .summary-pill,
-body.visual-proposta .chip-time {
+body.visual-proposta .chip-time,
+body.visual-proposta .active-filter-chip {
   border-radius: 999px;
-  border-color: var(--line);
-  background: var(--surface-2);
-  font-weight: 500;
+  border-color: var(--line-forte);
+  background: transparent;
+  font-weight: 450;
+  box-shadow: none;
 }
-body.visual-proposta .filter-chip.active {
-  background: var(--navy);
-  border-color: var(--navy);
-  color: #fff;
-}
+body.visual-proposta .filter-chip.active { background: var(--ink); border-color: var(--ink); color: var(--canvas); }
+body.visual-proposta .active-filter-chip { background: var(--sky); border-color: var(--blue); color: var(--blue2); }
 
 body.visual-proposta input,
 body.visual-proposta select,
 body.visual-proposta textarea,
 body.visual-proposta .search-field {
-  border-radius: 11px;
-  border-color: var(--line);
+  border-radius: 8px;
+  border-color: var(--line-forte);
   background: var(--surface);
   color: var(--ink);
 }
 body.visual-proposta .search-field:focus-within {
-  border-color: var(--blue);
-  outline: 3px solid color-mix(in srgb, var(--blue) 18%, transparent);
+  border-color: var(--ink);
+  outline: 2px solid var(--brass);
+  outline-offset: 1px;
 }
 
 /* ------------------------------------------------------------------ *
  * 7. Grade
  * ------------------------------------------------------------------ *
- * As cores dos cartoes continuam vindo dos GRUPOS DE COR da EBC, aplicados
- * por JavaScript como estilo inline (--program-bg / --program-text /
- * --program-accent). Nao mexemos nisso de proposito: aqui so ajustamos
- * forma, sombra e ritmo tipografico. */
+ * As cores dos cartoes continuam vindo dos GRUPOS DE COR da EBC, aplicados por
+ * JavaScript como estilo inline. Nao mexemos nisso: aqui so ajustamos forma e
+ * ritmo tipografico, para a paleta que voce configurou continuar mandando. */
 body.visual-proposta .timeline-header {
   background: var(--surface-2);
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-forte);
   font-family: var(--font-ui);
-  font-weight: 600;
+  font-weight: 500;
+  font-size: .82rem;
 }
 body.visual-proposta .timeline-header.today { background: var(--sky); color: var(--blue2); }
 body.visual-proposta .time-axis { background-color: var(--surface-2); }
-body.visual-proposta .time-label { font-size: .67rem; letter-spacing: .04em; }
+body.visual-proposta .time-label { font-size: .66rem; letter-spacing: .02em; color: var(--muted); }
 
 body.visual-proposta .program-card {
-  border-radius: 11px;
-  border-left-width: 4px;
-  box-shadow: 0 1px 2px rgba(var(--shadow), .08), 0 6px 16px rgba(var(--shadow), .10);
-  transition: transform .18s var(--ease), box-shadow .18s var(--ease), opacity .15s;
+  border-radius: 6px;
+  border-left-width: 3px;
+  box-shadow: none;
+  transition: border-color .16s var(--ease), filter .16s var(--ease);
 }
 body.visual-proposta .program-card:hover,
 body.visual-proposta .program-card:focus-visible {
-  transform: translateY(-2px) scale(1.004);
-  box-shadow: 0 4px 8px rgba(var(--shadow), .1), 0 16px 36px rgba(var(--shadow), .2);
+  transform: none;
+  filter: brightness(.97);
+  box-shadow: none;
 }
-body.visual-proposta .program-title {
-  font-weight: 650;
-  letter-spacing: -.005em;
-}
-body.visual-proposta .program-meta { font-family: var(--font-mono); font-size: .62rem; }
+body.visual-proposta .program-title { font-weight: 600; letter-spacing: -.004em; }
+body.visual-proposta .program-meta { font-size: .62rem; }
 
-/* O item no ar respira: e a informacao mais importante da tela. */
+/* O item no ar e a informacao mais importante da tela: ganha um contorno de latao. */
 body.visual-proposta .program-card.current {
   outline: 2px solid var(--brass);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brass) 22%, transparent), 0 16px 40px rgba(var(--shadow), .24);
+  outline-offset: -1px;
+  box-shadow: none;
 }
-body.visual-proposta .now-line { border-top-width: 2px; border-color: #ff3b4a; }
+body.visual-proposta .now-line { border-top: 1px solid var(--danger); }
 body.visual-proposta .now-label {
-  background: #ff3b4a;
+  background: var(--danger);
   font-family: var(--font-mono);
-  letter-spacing: .1em;
-  border-radius: 4px;
+  font-size: .58rem;
+  letter-spacing: .12em;
+  border-radius: 2px;
 }
+
+/* Barra de contexto: informacao corrida, como uma linha fina de jornal. */
+body.visual-proposta .grade-context-row { border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+body.visual-proposta .on-air-flag {
+  font-family: var(--font-mono);
+  border-color: var(--line-forte);
+  color: var(--muted);
+  letter-spacing: .12em;
+}
+body.visual-proposta .on-air-title { font-family: var(--font-display); font-weight: 560; font-size: .95rem; }
 
 /* ------------------------------------------------------------------ *
  * 8. Sobreposicoes
@@ -293,39 +316,169 @@ body.visual-proposta .login-card,
 body.visual-proposta .channel-dialog {
   background: var(--surface);
   color: var(--ink);
-  border-radius: 22px;
+  border: 1px solid var(--line-forte);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .18);
 }
-body.visual-proposta .detail-drawer { border-radius: 22px 0 0 22px; }
+body.visual-proposta .detail-drawer { border-radius: 12px 0 0 12px; border-right: 0; }
 body.visual-proposta .modal-backdrop,
-body.visual-proposta .drawer-backdrop { background: rgba(11, 17, 32, .62); backdrop-filter: blur(5px); }
+body.visual-proposta .drawer-backdrop { background: rgba(20, 19, 15, .55); backdrop-filter: none; }
+body.visual-proposta .modal header,
+body.visual-proposta .detail-drawer header { border-bottom: 1px solid var(--line); }
+body.visual-proposta .modal-footer { border-top: 1px solid var(--line); }
 body.visual-proposta .toast {
-  border-radius: 13px;
-  font-weight: 500;
-  box-shadow: 0 18px 48px rgba(var(--shadow), .28);
+  border-radius: 8px;
+  font-weight: 450;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .22);
 }
-body.visual-proposta .overlay {
-  background: linear-gradient(135deg, rgba(11, 17, 32, .97), rgba(31, 79, 156, .9));
-}
+body.visual-proposta .overlay { background: var(--navy); }
 
 /* ------------------------------------------------------------------ *
  * 9. Acessibilidade e impressao
  * ------------------------------------------------------------------ */
 body.visual-proposta *:focus-visible {
-  outline: 3px solid var(--brass);
+  outline: 2px solid var(--brass);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: reduce) {
   body.visual-proposta *,
   body.visual-proposta *::before,
   body.visual-proposta *::after { transition: none !important; animation: none !important; }
-  body.visual-proposta .nav-button:hover,
-  body.visual-proposta .catalog-row:hover,
-  body.visual-proposta .program-card:hover,
-  body.visual-proposta .button:hover:not(:disabled) { transform: none; }
 }
 
-/* O PDF nao herda nada disto: papel continua branco, tinta preta e a grade
-   impressa segue exatamente as mesmas regras de sempre. */
+/* O PDF nao herda nada disto: papel branco, tinta preta e as mesmas regras de sempre. */
 @media print {
   body.visual-proposta { background: #fff !important; }
 }
+
+/* ------------------------------------------------------------------ *
+ * 10. Tela de entrada - capa de edicao, nao caixa de login
+ * ------------------------------------------------------------------ *
+ * Aqui a proposta deixa de ser troca de fonte e vira outro template: o cartao
+ * centralizado da versao atual da lugar a uma pagina de abertura de largura inteira,
+ * com o texto alinhado a esquerda e uma coluna de leitura, como a capa de um caderno. */
+body.visual-proposta .overlay {
+  background: var(--navy);
+  display: grid;
+  place-items: center start;
+  padding: clamp(28px, 7vw, 110px);
+}
+body.visual-proposta .login-card {
+  width: min(100%, 660px);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  color: #efe9dd;
+  text-align: left;
+}
+body.visual-proposta .login-logo {
+  width: 132px;
+  height: auto;
+  margin-bottom: clamp(28px, 6vh, 64px);
+  opacity: .92;
+}
+body.visual-proposta .login-card .eyebrow { color: var(--brass); margin-bottom: 14px; }
+body.visual-proposta .login-card h1 {
+  font-size: clamp(2.4rem, 5.6vw, 3.9rem);
+  line-height: 1.02;
+  letter-spacing: -.025em;
+  color: #fbf7ef;
+  margin: 0;
+}
+/* A linha de abertura so existe neste template. */
+body.visual-proposta .login-lede {
+  display: block;
+  font-size: clamp(1rem, 1.6vw, 1.16rem);
+  line-height: 1.5;
+  color: #c9c0b0;
+  max-width: 46ch;
+  margin: 20px 0 0;
+}
+body.visual-proposta .login-card .muted {
+  color: #9a9284;
+  font-size: .88rem;
+  max-width: 44ch;
+  margin: 26px 0 0;
+  padding-top: 22px;
+  border-top: 1px solid rgba(255, 255, 255, .12);
+}
+body.visual-proposta .login-card .button {
+  width: auto;
+  min-width: 260px;
+  margin-top: 18px;
+  background: #fbf7ef;
+  border-color: #fbf7ef;
+  color: var(--navy);
+}
+body.visual-proposta .login-card .button:hover { background: var(--brass); border-color: var(--brass); color: #14130f; }
+body.visual-proposta #login-status { color: #8b8375; margin-top: 14px; }
+body.visual-proposta .app-version-login {
+  color: #6f685c;
+  font-family: var(--font-mono);
+  font-size: .68rem;
+  letter-spacing: .1em;
+  margin-top: clamp(26px, 6vh, 56px);
+}
+
+/* ------------------------------------------------------------------ *
+ * 11. Escolha do canal - indice, nao vitrine de botoes
+ * ------------------------------------------------------------------ */
+body.visual-proposta .channel-dialog {
+  width: min(100%, 720px);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  color: #efe9dd;
+}
+body.visual-proposta .dialog-heading { align-items: flex-end; margin-bottom: 30px; }
+body.visual-proposta .channel-dialog h2 {
+  font-size: clamp(1.9rem, 4vw, 2.7rem);
+  color: #fbf7ef;
+  letter-spacing: -.02em;
+}
+body.visual-proposta .channel-dialog .eyebrow { color: var(--brass); }
+body.visual-proposta .channel-dialog .muted { color: #9a9284; }
+body.visual-proposta .dialog-logo { opacity: .55; }
+
+/* Uma linha por canal, separada por fio: parece sumario, nao painel de botoes. */
+body.visual-proposta .channel-grid { grid-template-columns: 1fr; gap: 0; margin-top: 8px; }
+body.visual-proposta .channel-choice {
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 22px;
+  padding: 22px 6px;
+  background: transparent;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 0;
+  transition: padding-left .18s var(--ease), background .18s var(--ease);
+}
+body.visual-proposta .channel-grid .channel-choice:last-child { border-bottom: 1px solid rgba(255, 255, 255, .14); }
+body.visual-proposta .channel-choice:hover,
+body.visual-proposta .channel-choice:focus-visible {
+  background: rgba(255, 255, 255, .05);
+  padding-left: 16px;
+  transform: none;
+  box-shadow: none;
+  border-color: rgba(255, 255, 255, .14);
+}
+body.visual-proposta .channel-choice img { width: 116px; height: 46px; object-fit: contain; object-position: left; }
+
+/* ------------------------------------------------------------------ *
+ * 12. Ritmo da pagina
+ * ------------------------------------------------------------------ *
+ * Mais ar entre os blocos e uma coluna de leitura mais estreita nos textos longos:
+ * o que distingue um documento bem composto de uma tela cheia de caixas. */
+body.visual-proposta .page { padding: 32px clamp(20px, 3.4vw, 44px) 72px; }
+body.visual-proposta .page-heading .muted,
+body.visual-proposta .panel > .muted { max-width: 62ch; }
+body.visual-proposta .panel { padding: 26px; }
+body.visual-proposta .panel h3 { font-size: 1.12rem; margin-bottom: 12px; }
+body.visual-proposta .two-column { gap: 26px; }
+body.visual-proposta .metric-grid { gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+body.visual-proposta .metric { border: 0; border-radius: 0; }

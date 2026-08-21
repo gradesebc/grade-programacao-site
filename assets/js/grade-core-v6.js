@@ -216,7 +216,7 @@
     try{const db=await openDb();if(!db)return null;return await new Promise((resolve,reject)=>{const tx=db.transaction('state','readonly');const req=tx.objectStore('state').get(key);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}catch(_){return null;}
   }
   async function cachePut(key,value){
-    try{const db=await openDb();if(!db)return;await new Promise((resolve,reject)=>{const tx=db.transaction('state','readwrite');tx.objectStore('state').put(clone(value),key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}catch(err){console.warn('Cache local indisponível',err);} 
+    try{const db=await openDb();if(!db)return;await new Promise((resolve,reject)=>{const tx=db.transaction('state','readwrite');tx.objectStore('state').put(clone(value),key);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});}catch(err){console.warn('Cache local indisponível',err);}
   }
   function stateCacheKey(){
     requireSignedIn();return 'state:'+session.email;
@@ -230,7 +230,7 @@
         request.onsuccess=()=>{const cursor=request.result;if(!cursor)return;const key=String(cursor.key||'');if(key==='state'||(key.startsWith('state:')&&key!==active))cursor.delete();cursor.continue();};
         request.onerror=()=>reject(request.error);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);
       });
-    }catch(err){console.warn('Nao foi possivel isolar o cache local',err);} 
+    }catch(err){console.warn('Nao foi possivel isolar o cache local',err);}
   }
   async function clearLocalData(){
     state=emptyState();session={user:null,email:'',role:'Operador',channel:'',dirty:new Set()};
