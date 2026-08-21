@@ -1,0 +1,331 @@
+/*!
+ * Sistema de Grade - EBC / TV Brasil
+ * Autor e desenvolvedor: Henrique Rude ("HDut")
+ *
+ * PROPOSTA VISUAL - camada opcional, DESLIGADA por padrao.
+ * ------------------------------------------------------------------
+ * Tudo aqui vive sob `body.visual-proposta`. Sem essa classe, este arquivo
+ * nao muda absolutamente nada: o sistema continua exatamente como esta hoje.
+ * Ligar/desligar e feito em Administracao > Aparencia (fica no navegador de
+ * cada pessoa, nao e compartilhado e nao toca nos dados).
+ *
+ * A estrategia e deliberada: em vez de reescrever a interface, redefinimos os
+ * TOKENS que o CSS de producao ja consome (--navy, --blue, --ink, --canvas...).
+ * Assim a linguagem visual muda por inteiro sem mexer no HTML nem no JavaScript,
+ * e nenhuma funcionalidade se perde no caminho.
+ *
+ * Base: proposta de layout avaliada em 18/08/2026 (mockup_proposta.html).
+ * Tipografia: Fraunces (titulos), Sora (interface), IBM Plex Mono (horarios),
+ * todas hospedadas localmente em assets/fonts - a CSP e font-src 'self'.
+ */
+
+/* ------------------------------------------------------------------ *
+ * 1. Tokens - tema claro ("papel")
+ * ------------------------------------------------------------------ */
+body.visual-proposta {
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-ui: "Sora", "Segoe UI", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+
+  /* Papel quente no lugar do cinza-azulado frio. */
+  --canvas: #f4eee5;
+  --ink: #1d1a15;
+  --muted: #6b6355;
+  --line: #ddd2c2;
+
+  /* Azul da marca, mantido: e a identidade da EBC. */
+  --navy: #0e1626;
+  --blue: #2e6ac2;
+  --blue2: #1f4f9c;
+  --sky: #e7eefb;
+
+  --brass: #b8862c;
+  --success: #14684a;
+  --warning: #96590a;
+  --danger: #a8271c;
+
+  --surface: #fffdf9;
+  --surface-2: #f9f4ec;
+  --shadow: 22, 18, 12;
+  --radius: 16px;
+  --ease: cubic-bezier(.16, 1, .3, 1);
+
+  font-family: var(--font-ui);
+  background:
+    radial-gradient(1100px 620px at 8% -12%, rgba(46, 106, 194, .10), transparent 62%),
+    radial-gradient(820px 460px at 108% -4%, rgba(184, 134, 44, .09), transparent 58%),
+    var(--canvas);
+  background-attachment: fixed;
+}
+
+/* Sotaque por canal: cada grade se reconhece pela cor. O app ja escreve
+   data-channel no <body>; sem ele, fica o azul da TV Brasil. */
+body.visual-proposta[data-channel="tv_brasil"] { --blue: #2e6ac2; --blue2: #1f4f9c; }
+body.visual-proposta[data-channel="tv_brasil_internacional"] { --blue: #1384c9; --blue2: #0f6ba3; }
+body.visual-proposta[data-channel="gov"] { --blue: #0e6b45; --blue2: #0a5335; --sky: #e4f2ec; }
+
+/* ------------------------------------------------------------------ *
+ * 2. Tokens - tema escuro (a "mesa de controle" da proposta)
+ * ------------------------------------------------------------------ */
+body.visual-proposta.theme-dark {
+  --canvas: #0b1120;
+  --ink: #ece5d8;
+  --muted: #9a9384;
+  --line: #24314a;
+  --navy: #070d1a;
+  --sky: #16233c;
+  --surface: #111b2f;
+  --surface-2: #0d1526;
+  --shadow: 0, 0, 0;
+  background:
+    radial-gradient(1100px 620px at 8% -12%, rgba(46, 106, 194, .26), transparent 62%),
+    radial-gradient(820px 460px at 108% -4%, rgba(212, 168, 75, .13), transparent 58%),
+    var(--canvas);
+}
+
+/* ------------------------------------------------------------------ *
+ * 3. Tipografia editorial
+ * ------------------------------------------------------------------ */
+body.visual-proposta h1,
+body.visual-proposta h2,
+body.visual-proposta .login-card h1,
+body.visual-proposta .page-heading h2,
+body.visual-proposta .grade-heading-row h2 {
+  font-family: var(--font-display);
+  font-weight: 560;
+  letter-spacing: -.015em;
+  line-height: 1.12;
+}
+body.visual-proposta .page-heading h2,
+body.visual-proposta .grade-heading-row h2 { font-size: 1.9rem; }
+
+body.visual-proposta .eyebrow {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: .68rem;
+  letter-spacing: .16em;
+  color: var(--brass);
+}
+body.visual-proposta.theme-dark .eyebrow { color: #d4a84b; }
+
+/* Horarios em monoespaçada: numeros alinhados verticalmente na grade. */
+body.visual-proposta .time-label,
+body.visual-proposta .print-time,
+body.visual-proposta .program-time,
+body.visual-proposta .week-number-badge,
+body.visual-proposta .chip-time,
+body.visual-proposta .metric strong {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------------ *
+ * 4. Moldura: barra lateral e topo
+ * ------------------------------------------------------------------ */
+body.visual-proposta .sidebar {
+  background: linear-gradient(180deg, var(--navy), color-mix(in srgb, var(--navy) 82%, var(--blue2)));
+  border-right: 1px solid rgba(255, 255, 255, .07);
+}
+body.visual-proposta .nav-button {
+  border-radius: 12px;
+  font-weight: 500;
+  letter-spacing: .01em;
+  transition: background .18s var(--ease), color .18s var(--ease), transform .18s var(--ease);
+}
+body.visual-proposta .nav-button:hover { transform: translateX(2px); }
+body.visual-proposta .nav-button.active {
+  background: linear-gradient(180deg, #fff, #f4eee5);
+  color: var(--navy);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .3);
+}
+body.visual-proposta .nav-button.active::before {
+  content: "";
+  position: absolute;
+  left: -16px;
+  width: 3px;
+  height: 26px;
+  border-radius: 0 3px 3px 0;
+  background: var(--brass);
+}
+body.visual-proposta .nav-button { position: relative; }
+
+body.visual-proposta .topbar {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(14px) saturate(1.3);
+}
+body.visual-proposta .topbar-title h1 { font-size: 1.35rem; }
+
+/* ------------------------------------------------------------------ *
+ * 5. Superficies: paineis, cartoes, metricas
+ * ------------------------------------------------------------------ */
+body.visual-proposta .panel,
+body.visual-proposta .metric,
+body.visual-proposta .catalog-row,
+body.visual-proposta .alert-group,
+body.visual-proposta .danger-card,
+body.visual-proposta .schedule-board,
+body.visual-proposta .filter-panel,
+body.visual-proposta .catalog-toolbar,
+body.visual-proposta .alert-toolbar {
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 2px rgba(var(--shadow), .05), 0 12px 32px rgba(var(--shadow), .07);
+}
+body.visual-proposta .metric strong { font-size: 2rem; font-weight: 600; letter-spacing: -.02em; }
+body.visual-proposta .metric span { font-family: var(--font-mono); font-size: .64rem; letter-spacing: .12em; }
+
+body.visual-proposta .catalog-row { transition: transform .2s var(--ease), box-shadow .2s var(--ease); }
+body.visual-proposta .catalog-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 4px rgba(var(--shadow), .06), 0 18px 44px rgba(var(--shadow), .12);
+}
+body.visual-proposta .catalog-row h3 { font-family: var(--font-display); font-size: 1.05rem; font-weight: 560; }
+
+/* ------------------------------------------------------------------ *
+ * 6. Controles
+ * ------------------------------------------------------------------ */
+body.visual-proposta .button,
+body.visual-proposta .icon-button,
+body.visual-proposta .segmented {
+  border-radius: 12px;
+  font-weight: 600;
+  letter-spacing: .005em;
+  transition: transform .16s var(--ease), background .16s var(--ease), box-shadow .16s var(--ease);
+}
+body.visual-proposta .button:hover:not(:disabled),
+body.visual-proposta .icon-button:hover:not(:disabled) { transform: translateY(-1px); }
+body.visual-proposta .button-primary {
+  background: linear-gradient(180deg, var(--blue), var(--blue2));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--blue) 32%, transparent);
+}
+body.visual-proposta .button-secondary,
+body.visual-proposta .icon-button {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+body.visual-proposta .button-secondary:hover,
+body.visual-proposta .icon-button:hover { background: var(--sky); border-color: var(--blue); }
+
+body.visual-proposta .filter-chip,
+body.visual-proposta .summary-pill,
+body.visual-proposta .chip-time {
+  border-radius: 999px;
+  border-color: var(--line);
+  background: var(--surface-2);
+  font-weight: 500;
+}
+body.visual-proposta .filter-chip.active {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+body.visual-proposta input,
+body.visual-proposta select,
+body.visual-proposta textarea,
+body.visual-proposta .search-field {
+  border-radius: 11px;
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+body.visual-proposta .search-field:focus-within {
+  border-color: var(--blue);
+  outline: 3px solid color-mix(in srgb, var(--blue) 18%, transparent);
+}
+
+/* ------------------------------------------------------------------ *
+ * 7. Grade
+ * ------------------------------------------------------------------ *
+ * As cores dos cartoes continuam vindo dos GRUPOS DE COR da EBC, aplicados
+ * por JavaScript como estilo inline (--program-bg / --program-text /
+ * --program-accent). Nao mexemos nisso de proposito: aqui so ajustamos
+ * forma, sombra e ritmo tipografico. */
+body.visual-proposta .timeline-header {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+body.visual-proposta .timeline-header.today { background: var(--sky); color: var(--blue2); }
+body.visual-proposta .time-axis { background-color: var(--surface-2); }
+body.visual-proposta .time-label { font-size: .67rem; letter-spacing: .04em; }
+
+body.visual-proposta .program-card {
+  border-radius: 11px;
+  border-left-width: 4px;
+  box-shadow: 0 1px 2px rgba(var(--shadow), .08), 0 6px 16px rgba(var(--shadow), .10);
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease), opacity .15s;
+}
+body.visual-proposta .program-card:hover,
+body.visual-proposta .program-card:focus-visible {
+  transform: translateY(-2px) scale(1.004);
+  box-shadow: 0 4px 8px rgba(var(--shadow), .1), 0 16px 36px rgba(var(--shadow), .2);
+}
+body.visual-proposta .program-title {
+  font-weight: 650;
+  letter-spacing: -.005em;
+}
+body.visual-proposta .program-meta { font-family: var(--font-mono); font-size: .62rem; }
+
+/* O item no ar respira: e a informacao mais importante da tela. */
+body.visual-proposta .program-card.current {
+  outline: 2px solid var(--brass);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--brass) 22%, transparent), 0 16px 40px rgba(var(--shadow), .24);
+}
+body.visual-proposta .now-line { border-top-width: 2px; border-color: #ff3b4a; }
+body.visual-proposta .now-label {
+  background: #ff3b4a;
+  font-family: var(--font-mono);
+  letter-spacing: .1em;
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------------ *
+ * 8. Sobreposicoes
+ * ------------------------------------------------------------------ */
+body.visual-proposta .modal,
+body.visual-proposta .detail-drawer,
+body.visual-proposta .login-card,
+body.visual-proposta .channel-dialog {
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 22px;
+}
+body.visual-proposta .detail-drawer { border-radius: 22px 0 0 22px; }
+body.visual-proposta .modal-backdrop,
+body.visual-proposta .drawer-backdrop { background: rgba(11, 17, 32, .62); backdrop-filter: blur(5px); }
+body.visual-proposta .toast {
+  border-radius: 13px;
+  font-weight: 500;
+  box-shadow: 0 18px 48px rgba(var(--shadow), .28);
+}
+body.visual-proposta .overlay {
+  background: linear-gradient(135deg, rgba(11, 17, 32, .97), rgba(31, 79, 156, .9));
+}
+
+/* ------------------------------------------------------------------ *
+ * 9. Acessibilidade e impressao
+ * ------------------------------------------------------------------ */
+body.visual-proposta *:focus-visible {
+  outline: 3px solid var(--brass);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  body.visual-proposta *,
+  body.visual-proposta *::before,
+  body.visual-proposta *::after { transition: none !important; animation: none !important; }
+  body.visual-proposta .nav-button:hover,
+  body.visual-proposta .catalog-row:hover,
+  body.visual-proposta .program-card:hover,
+  body.visual-proposta .button:hover:not(:disabled) { transform: none; }
+}
+
+/* O PDF nao herda nada disto: papel continua branco, tinta preta e a grade
+   impressa segue exatamente as mesmas regras de sempre. */
+@media print {
+  body.visual-proposta { background: #fff !important; }
+}

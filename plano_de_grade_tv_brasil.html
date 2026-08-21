@@ -5,15 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta name="application-version" content="6.4.0">
-  <meta name="application-release-date" content="18/08/2026">
+  <meta name="application-version" content="6.5.0">
+  <meta name="application-release-date" content="20/08/2026">
   <meta name="author" content="Henrique Rude (HDut)">
   <meta name="dcterms.creator" content="Henrique Rude (HDut)">
   <meta name="generator" content="Sistema de Grade EBC — desenvolvido por Henrique Rude (HDut)">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://play.ebc.com.br https://public.ebc.com.br https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
   <title>Sistema de Grade - EBC</title>
-  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260818-v640">
-  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260818-v640">
+  <link rel="stylesheet" href="assets/css/fontes-sistema.css?v=20260820-v650">
+  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260820-v650">
+  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260820-v650">
+  <!-- Proposta visual: inerte enquanto o <body> não tiver a classe visual-proposta.
+       Liga e desliga em Administração > Aparência, sem afetar ninguém mais. -->
+  <link rel="stylesheet" href="assets/css/grade-v6-proposta.css?v=20260820-v650">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -25,7 +29,7 @@
       <p class="muted">Entre com sua conta corporativa para acessar as grades compartilhadas.</p>
       <button id="login-button" class="button button-primary button-large" type="button"><span data-icon="microsoft"></span> Entrar com a Microsoft</button>
       <p id="login-status" class="helper" role="status">Autenticação segura pelo Microsoft Entra.</p>
-      <p class="app-version app-version-login" data-app-version>Versão 6.4.0 · 18/08/2026</p>
+      <p class="app-version app-version-login" data-app-version>Versão 6.5.0 · 20/08/2026</p>
     </section>
   </div>
   <div id="channel-overlay" class="overlay hidden" aria-labelledby="channel-title">
@@ -41,12 +45,18 @@
         <div class="brand-meta"><strong id="sidebar-channel">Canal</strong><span id="sidebar-user">Usuário</span></div>
         <button id="sidebar-collapse" class="sidebar-collapse-button" type="button" aria-label="Recolher menu lateral" aria-expanded="true" data-tooltip="Recolher menu lateral"><span data-icon="panel-left"></span></button>
       </div>
+      <!-- Agrupado pelo ritmo de uso: montar a grade é o dia a dia; conferir alertas e
+           métricas é periódico; importar, histórico e administração são pontuais.
+           Alertas abre o segundo bloco porque carrega o aviso de pendências. -->
       <nav id="main-nav" class="main-nav">
+        <p class="nav-section-title">Programação</p>
         <button data-page="grade" class="nav-button active" type="button"><span data-icon="calendar"></span><span class="nav-label">Grade</span></button>
-        <button data-page="metrics" class="nav-button" type="button"><span data-icon="database"></span><span class="nav-label">Métricas de exibição</span></button>
         <button data-page="catalog" class="nav-button" type="button"><span data-icon="library"></span><span class="nav-label">Programas e episódios</span></button>
-        <button data-page="import" class="nav-button" type="button"><span data-icon="transfer"></span><span class="nav-label">Importar e exportar</span></button>
+        <p class="nav-section-title">Acompanhamento</p>
         <button data-page="alerts" class="nav-button" type="button"><span data-icon="alert"></span><span class="nav-label">Alertas e vigências</span><b id="alert-badge" class="badge">0</b></button>
+        <button data-page="metrics" class="nav-button" type="button"><span data-icon="database"></span><span class="nav-label">Métricas de exibição</span></button>
+        <p class="nav-section-title">Sistema</p>
+        <button data-page="import" class="nav-button" type="button"><span data-icon="transfer"></span><span class="nav-label">Importar e exportar</span></button>
         <button data-page="history" class="nav-button" type="button"><span data-icon="history"></span><span class="nav-label">Histórico</span></button>
         <button data-page="admin" class="nav-button" type="button"><span data-icon="settings"></span><span class="nav-label">Administração</span></button>
       </nav>
@@ -55,7 +65,7 @@
         <p id="sync-detail">Aguardando conexão com o OneDrive.</p>
         <button id="sync-now" class="text-button" type="button"><span data-icon="cloud"></span><span class="sidebar-action-label">Sincronizar agora</span></button>
       </div>
-      <div class="sidebar-version" data-version-short="v6.4.0" title="Versão instalada: 6.4.0 · 18/08/2026"><span data-app-version>Versão 6.4.0 · 18/08/2026</span></div>
+      <div class="sidebar-version" data-version-short="v6.5.0" title="Versão instalada: 6.5.0 · 20/08/2026"><span data-app-version>Versão 6.5.0 · 20/08/2026</span></div>
       <div class="sidebar-actions">
         <button id="switch-channel" class="button button-quiet" type="button"><span data-icon="switch"></span><span class="sidebar-action-label">Trocar canal</span></button>
         <button id="logout-button" class="button button-quiet" type="button"><span data-icon="logout"></span><span class="sidebar-action-label">Sair</span></button>
@@ -74,7 +84,10 @@
       </header>
       <section id="page-grade" class="page active" aria-labelledby="page-title">
         <div class="grade-sticky-zone no-print">
-        <div class="grade-toolbar">
+        <!-- Barra de comando única: semana, busca, filtros recolhidos, zoom e ações.
+             Antes eram quatro faixas empilhadas, que numa tela de notebook comiam a
+             altura da grade — que é o que de fato importa nesta página. -->
+        <div class="grade-toolbar grade-command-bar">
           <div class="week-navigation">
             <button id="previous-week" class="icon-button" type="button" aria-label="Semana anterior"><span data-icon="left"></span></button>
             <button id="current-week" class="button button-secondary button-compact" type="button">Atual</button>
@@ -82,13 +95,22 @@
             <span id="week-number" class="week-number-badge">Semana</span>
             <label><span class="sr-only">Escolher data</span><input id="week-picker" type="date"></label>
           </div>
+          <div class="command-week-label"><h2 id="week-label">Semana vigente</h2><p id="week-subtitle" class="muted"></p></div>
+          <label class="search-field command-search"><span data-icon="search"></span><input id="grade-search" type="search" placeholder="Buscar programa, episódio ou categoria"></label>
+          <button id="toggle-filters" class="button button-secondary button-compact" type="button" aria-expanded="false" aria-controls="filter-panel"><span data-icon="filter"></span> Filtros<b id="filter-count" class="badge hidden">0</b></button>
           <div class="grade-zoom" aria-label="Zoom vertical da grade"><button id="zoom-out" class="icon-button" type="button" aria-label="Reduzir altura da grade"><span data-icon="minus"></span></button><label><span id="zoom-label">15 min · 100%</span><input id="grade-zoom" type="range" min="40" max="175" step="10" value="100"></label><button id="zoom-in" class="icon-button" type="button" aria-label="Ampliar altura da grade"><span data-icon="plus"></span></button></div>
-          <button id="grade-undo" class="button button-secondary button-compact" type="button" disabled><span data-icon="undo"></span> Desfazer</button>
-          <button id="new-schedule" class="button button-primary" type="button"><span data-icon="plus"></span> Programar conteúdo</button>
+          <button id="grade-undo" class="icon-button" type="button" disabled data-tooltip="Desfazer última alteração" aria-label="Desfazer"><span data-icon="undo"></span></button>
+          <button id="new-schedule" class="button button-primary" type="button"><span data-icon="plus"></span> Programar</button>
         </div>
-        <div class="grade-heading-row"><div><h2 id="week-label">Semana vigente</h2><p id="week-subtitle" class="muted"></p></div><div id="grade-summary" class="summary-pills"></div></div>
-        <div class="filter-panel">
-          <label class="search-field"><span data-icon="search"></span><input id="grade-search" type="search" placeholder="Buscar programa, episódio ou categoria"></label>
+        <!-- Linha de contexto: o que está no ar segundo a grade, e os números da semana. -->
+        <div class="grade-context-row">
+          <div id="on-air-now" class="on-air-now" hidden></div>
+          <div id="grade-summary" class="summary-pills"></div>
+        </div>
+        <!-- Filtros ativos continuam visíveis mesmo com o painel fechado: filtro escondido
+             faz a pessoa achar que perdeu programação. -->
+        <div id="active-filters" class="active-filters hidden" aria-label="Filtros ativos"></div>
+        <div id="filter-panel" class="filter-panel hidden">
           <div id="grade-filters" class="filter-chips" aria-label="Filtros da grade"></div>
           <label class="toggle"><input id="hide-unmatched" type="checkbox"><span>Ocultar os demais</span></label>
           <button id="clear-filters" class="text-button" type="button">Limpar filtros</button>
@@ -148,7 +170,7 @@
         <div id="permission-notice" class="notice"></div>
         <article class="panel release-panel">
           <div><p class="eyebrow">Identificação do sistema</p><h3>Versão instalada</h3><p class="muted">Informe este número ao relatar uma dúvida, correção ou diferença entre computadores.</p></div>
-          <strong class="release-badge" data-app-version>Versão 6.4.0 · 18/08/2026</strong>
+          <strong class="release-badge" data-app-version>Versão 6.5.0 · 20/08/2026</strong>
         </article>
         <article class="panel admin-users-panel">
           <div class="panel-heading"><div><h3>Usuários e permissões</h3><p class="muted">Administradores acessam todos os canais; operadores recebem apenas os canais indicados.</p></div><button id="new-user-profile" class="button button-secondary" type="button"><span data-icon="plus"></span> Adicionar usuário</button></div>
@@ -159,6 +181,12 @@
           <div class="form-grid" style="grid-template-columns:minmax(200px,1fr) auto;align-items:center;gap:16px;margin-top:12px">
             <label class="toggle"><input id="global-artwork-enabled" type="checkbox" checked> Exibir imagens de fundo dos programas<span class="helper">Desative para ocultar as imagens na grade e no catálogo sem apagar os arquivos.</span></label>
             <label>Intensidade das imagens de fundo: <strong id="global-opacity-label">14%</strong><input id="global-artwork-opacity" type="range" min="5" max="90" step="1" value="14"><span class="helper">Ajuste entre 5% e 90%. As imagens recebem contraste próprio em cada tema e não são impressas no PDF.</span></label>
+          </div>
+        </article>
+        <article class="panel admin-visual-panel" style="margin-top:20px">
+          <div class="panel-heading"><div><h3>Aparência em teste</h3><p class="muted">Proposta de novo visual, avaliada em 18/08/2026. Muda só a aparência: todas as funções, dados e permissões continuam idênticas.</p></div></div>
+          <div class="form-grid" style="grid-template-columns:minmax(240px,1fr);gap:12px;margin-top:12px">
+            <label class="toggle"><input id="visual-proposta-toggle" type="checkbox"> Usar a proposta de novo visual<span class="helper">Vale só para o seu navegador — não altera o que as outras pessoas veem, nem o PDF. Pode desligar a qualquer momento e tudo volta na hora.</span></label>
           </div>
         </article>
         <div class="cleanup-grid">
@@ -183,11 +211,11 @@
   <div id="print-root" aria-hidden="true"></div>
   <script src="assets/vendor/xlsx.full.min.js?v=0.20.3"></script>
   <script src="assets/js/microsoft-graph.bundle.js?v=20260813-v624"></script>
-  <script src="assets/js/grade-core-v6.js?v=20260818-v640"></script>
+  <script src="assets/js/grade-core-v6.js?v=20260820-v650"></script>
   <script src="assets/js/graph-store-v6.js?v=20260812-sec3"></script>
-  <script src="assets/js/tvbrasil-program-artworks.js?v=20260818-v640"></script>
-  <script src="assets/js/tvbrasil-episode-titles.js?v=20260818-v640"></script>
-  <script src="assets/js/ebc-play-source.js?v=20260818-v640"></script>
-  <script src="assets/js/grade-app-v6.js?v=20260818-v640"></script>
+  <script src="assets/js/tvbrasil-program-artworks.js?v=20260820-v650"></script>
+  <script src="assets/js/tvbrasil-episode-titles.js?v=20260820-v650"></script>
+  <script src="assets/js/ebc-play-source.js?v=20260820-v650"></script>
+  <script src="assets/js/grade-app-v6.js?v=20260820-v650"></script>
 </body>
 </html>

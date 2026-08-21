@@ -193,7 +193,7 @@ body.theme-dark .release-panel{background:linear-gradient(120deg,var(--surface),
 @media(max-width:700px){.release-panel{align-items:flex-start;flex-direction:column}.release-badge{white-space:normal}}
 
 /* Grade 6.2: cabecalho compacto durante a rolagem */
-.grade-sticky-zone{position:sticky;top:88px;z-index:45;padding-top:2px;background:color-mix(in srgb,var(--canvas) 88%,transparent);backdrop-filter:blur(12px);transition:padding .18s ease,box-shadow .18s ease}
+.grade-sticky-zone{position:sticky;top:88px;z-index:45;padding-top:2px;background:var(--canvas);transition:padding .18s ease,box-shadow .18s ease}
 .grade-sticky-zone.is-compact{padding:5px 8px 2px;margin:0 -8px;box-shadow:0 8px 22px rgba(11,26,60,.12)}
 .grade-sticky-zone.is-compact .grade-toolbar{margin-bottom:4px;padding:4px 7px;border-radius:11px}
 .grade-sticky-zone.is-compact .grade-heading-row{margin:0 7px 4px;align-items:center}
@@ -202,7 +202,7 @@ body.theme-dark .release-panel{background:linear-gradient(120deg,var(--surface),
 .grade-sticky-zone.is-compact .filter-panel{margin-bottom:3px;padding:4px 7px;border-radius:11px}
 .grade-sticky-zone.is-compact .filter-chips,.grade-sticky-zone.is-compact .toggle,.grade-sticky-zone.is-compact #clear-filters,.grade-sticky-zone.is-compact .grade-zoom,.grade-sticky-zone.is-compact #new-schedule{display:none}
 .grade-sticky-zone.is-compact .search-field{min-height:36px}
-body.theme-dark .grade-sticky-zone{background:color-mix(in srgb,var(--canvas) 90%,transparent)}
+body.theme-dark .grade-sticky-zone{background:var(--canvas)}
 
 /* Conflitos e movimentacao */
 .summary-conflict{cursor:pointer;color:var(--danger);background:color-mix(in srgb,#d92d20 7%,var(--surface));border-color:color-mix(in srgb,#d92d20 30%,var(--line))}
@@ -250,3 +250,55 @@ body.theme-dark #page-catalog .metric,body.theme-dark #page-catalog .catalog-row
 /* Dados do painel lateral sem estouro de data */
 .drawer-facts{grid-template-columns:minmax(0,1.35fr) minmax(0,.65fr)}.drawer-facts .metric{min-width:0}.drawer-facts strong{font-size:1rem;line-height:1.2;overflow-wrap:anywhere}.episode-mode-panel{margin:14px 0;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--surface-soft)}.episode-mode-panel .helper{display:block;margin-top:7px;line-height:1.4}.episode-notice{grid-column:1/-1;margin:0}
 body.theme-dark .floating-day-header,body.theme-dark .floating-day-header .timeline-header,body.theme-dark .episode-mode-panel{background:var(--surface);border-color:var(--line)}
+
+/* Faixa mesclada do PDF: um programa ao vivo que se repete de terça a sexta ocupa
+   uma célula só, como numa planilha. Com mais largura disponível, o título pode
+   respirar em vez de continuar espremido na medida de uma coluna. */
+@media print{
+  .print-grid td.print-faixa .print-program{padding:.4mm .8mm}
+  .print-grid td.print-faixa .print-title{letter-spacing:.02em}
+  .print-summary .print-grid td.print-faixa .print-title{font-size:5.2pt}
+  .print-legible .print-grid td.print-faixa .print-title{font-size:6.4pt}
+}
+
+/* ===== Barra de comando única da grade =====
+   Substitui as quatro faixas empilhadas (ferramentas, título, filtros e atalhos) por
+   uma linha só, devolvendo altura para a grade — que é o conteúdo da página. */
+.grade-command-bar{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;margin-bottom:8px}
+.grade-command-bar .command-week-label{min-width:0;flex:0 1 auto}
+.grade-command-bar .command-week-label h2{font-size:1rem;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grade-command-bar .command-week-label p{margin:0;font-size:.7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.grade-command-bar .command-search{flex:1 1 200px;min-width:120px}
+.grade-command-bar .grade-zoom{flex:0 0 auto}
+#toggle-filters{position:relative;white-space:nowrap}
+#toggle-filters.has-filters{border-color:var(--blue);color:var(--blue2);background:var(--sky)}
+#toggle-filters .badge{margin-left:2px;background:var(--blue);color:#fff}
+
+/* Linha de contexto: no ar + números da semana, ambos discretos. */
+.grade-context-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px;min-height:28px}
+.on-air-now{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:.75rem;min-width:0}
+.on-air-flag{font-size:.62rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.on-air-title{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:min(46vw,340px)}
+.on-air-left{color:var(--blue2);font-weight:700;white-space:nowrap}
+.on-air-next{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Filtros ativos permanecem visíveis com o painel fechado. */
+.active-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.active-filter-chip{display:inline-flex;align-items:center;gap:6px;min-height:28px;padding:0 8px;border-radius:999px;border:1px solid var(--blue);background:var(--sky);color:var(--blue2);font-size:.72rem;font-weight:750}
+.active-filter-chip svg{width:13px;height:13px}
+.active-filter-chip:hover{background:#fff}
+#filter-panel{margin-bottom:8px}
+
+@media(max-width:1180px){
+  .grade-command-bar{flex-wrap:wrap}
+  .grade-command-bar .command-search{flex:1 1 100%;order:5}
+  .grade-command-bar .command-week-label{flex:1 1 auto}
+}
+body.theme-dark .active-filter-chip{background:var(--sky);border-color:var(--blue)}
+body.theme-dark .active-filter-chip:hover{background:var(--surface)}
+
+/* Divisões do menu lateral: rótulos discretos que separam os blocos sem virar
+   mais um item clicável. Somem quando a barra está recolhida, onde só cabe ícone. */
+.main-nav .nav-section-title{margin:14px 0 4px;padding:0 12px;font-size:.63rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(215,225,241,.55)}
+.main-nav .nav-section-title:first-child{margin-top:0}
+body.sidebar-collapsed .main-nav .nav-section-title{height:1px;margin:12px 10px;padding:0;overflow:hidden;color:transparent;background:rgba(255,255,255,.12);border-radius:1px}

@@ -64,6 +64,46 @@
     }).filter(Boolean).sort((a,b)=>a.slot-b.slot||a.originalStart-b.originalStart||b.span-a.span).forEach(segment=>{if(!starts.has(segment.slot))starts.set(segment.slot,segment);});
     return starts;
   }
+  // Duas células só se fundem quando mostram exatamente a mesma coisa.
+  // É isso que separa os dois casos: um programa ao vivo repete idêntico de terça a
+  // sexta e vira uma faixa única; uma série muda de episódio a cada dia, o conteúdo
+  // difere, e as células continuam separadas — senão o PDF apagaria a numeração.
+  function printMergeKey(segment){
+    const item=segment?.item||{};
+    return [
+      String(item.title||''),String(item.season||''),String(item.episodeNumber||''),String(item.episodeTitle||''),
+      item.type==='live'?'live':(item.isRerun?'rerun':''),
+      segment?.span,segment?.continuesBefore?1:0,segment?.continuesAfter?1:0
+    ].join('');
+  }
+  // Monta a semana impressa já resolvida: onde cada célula começa, quantas linhas
+  // ocupa (duração) e quantas colunas ocupa (dias iguais em sequência). Função pura,
+  // sem DOM, para poder ser testada de verdade.
+  function printWeekLayout(items,weekStart,fromSlot=0,toSlot=96){
+    const first=Math.max(0,Math.min(95,Math.floor(+fromSlot||0))),last=Math.max(first+1,Math.min(96,Math.ceil(+toSlot||96)));
+    const porDia=DAYS.map((_,index)=>printSegments(items,isoDate(addDays(weekStart,index)),first,last));
+    const starts=new Map(),covered=new Set(),pos=(slot,day)=>slot+':'+day;
+    for(let slot=first;slot<last;slot++){
+      for(let day=0;day<7;day++){
+        if(covered.has(pos(slot,day)))continue;
+        const segment=porDia[day].get(slot);if(!segment)continue;
+        const chave=printMergeKey(segment);
+        let colSpan=1;
+        while(day+colSpan<7&&!covered.has(pos(slot,day+colSpan))){
+          const vizinho=porDia[day+colSpan].get(slot);
+          if(!vizinho||printMergeKey(vizinho)!==chave)break;
+          colSpan++;
+        }
+        starts.set(pos(slot,day),{segment,rowSpan:segment.span,colSpan});
+        for(let linha=0;linha<segment.span;linha++)for(let coluna=0;coluna<colSpan;coluna++){
+          if(!linha&&!coluna)continue;
+          covered.add(pos(slot+linha,day+coluna));
+        }
+        day+=colSpan-1;
+      }
+    }
+    return {starts,covered};
+  }
   const DEFAULT_COLOR_GROUPS = [
     {id:'color_licensed',name:'Licenciamento',match:'licensed',background:'#FFFFFF',text:'#12203A',accent:'#2E6AC2'},
     {id:'color_rncp',name:'RNCP',match:'rncp',background:'#3B4658',text:'#FFFFFF',accent:'#0B1A3C'},
@@ -865,6 +905,6 @@
     const target=state.channels[channel];Object.entries(snapshot.grade||{}).forEach(([week,items])=>(items||[]).forEach(item=>target.occurrences.push({id:'graph_v4_'+String(item.id||uid('old')),channel,date:isoDate(addDays(week,DAY_INDEX[item.dia]??0)),start:item.hora||'00:00',duration:+item.dur||30,programId:'',title:item.obra||'Programa',season:item.temp||'',episodeNumber:item.ep||'',episodeTitle:item.subtit||'',type:item.isRepr?'rerun':(normalize(item.cat).includes('ao vivo')?'live':'recorded'),origin:legacyOrigin(item.cat),category:item.cat||'',isRerun:!!item.isRepr,source:'migration'})));
     audit('Versão online antiga migrada','Dados v4 convertidos para v6.','global');return true;
   }
-  const api={VERSION,AUTHOR,AUTHOR_HANDLE,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,episodeModeFor,episodeSequence,sequenceStartOffset,getOccurrences,getWeek,conflicts,findNearestAvailableSlot,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,canUndoGrade,undoLastGradeChange,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,mergeConcurrentChannel,mergeConcurrentGlobal,applyMergedChannel,applyMergedGlobal,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
+  const api={VERSION,AUTHOR,AUTHOR_HANDLE,CHANNELS,DAYS,DAY_INDEX,FILTERS,LIMITS,init,get state(){return stateSnapshot();},get session(){return sessionSnapshot();},setUser,setChannel,getCatalog,saveProgram,bulkUpdatePrograms,removeProgram,getColorGroups,getPreferences,savePreferences,saveColorGroup,deriveColorPalette,colorGroupUsage,removeColorGroup,episodeModeFor,episodeSequence,sequenceStartOffset,getOccurrences,getWeek,conflicts,findNearestAvailableSlot,saveRule,saveOccurrence,changeOccurrence,cancelOccurrence,canUndoGrade,undoLastGradeChange,getAlerts,parseWorkbook,previewImport,applyImport,undoImport,saveUserProfile,counts,snapshot,createCleanupBackup,cleanup,makeBackup,makeChannelBackup,inspectBackup,restoreBackup,exportRows,serializeGlobal,serializeChannel,mergeGlobal,mergeChannel,mergeConcurrentChannel,mergeConcurrentGlobal,applyMergedChannel,applyMergedGlobal,importLegacySnapshot,audit,persist,clone,uid,normalize,slug,isoDate,parseLocalDate,addDays,startOfWeek,minutes,opMinutes,timeFromMinutes,timeFromOpMinutes,formatDate,normalizeDate,programId,printSegments,printWeekLayout,printMergeKey,isAdmin,allowedChannelIds,getUserProfile,hasDirty,dirtyScopes,consumeDirtyScopes,restoreDirtyScopes,clearLocalData};
   window.EBCGrade=api;
 })();
