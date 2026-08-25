@@ -31,6 +31,13 @@
   const uid = prefix => (prefix || 'id') + '_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2,9);
   const normalize = value => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const titleKey = value => String(value??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  // Chave usada SO para decidir se duas linhas da planilha sao a mesma obra. Ignora
+  // pontuacao porque quem preenche a planilha escreve o mesmo programa de formas
+  // diferentes: "O SHOW DA LUNA" e "O SHOW DA LUNA!" sao temporadas do mesmo desenho,
+  // e sem isto entravam como dois cadastros separados.
+  // Nao substitui titleKey: aquele alimenta o programId, e mexer nele trocaria o
+  // identificador de todos os programas ja cadastrados.
+  const mergeTitleKey = value => titleKey(value).replace(/[^a-z0-9]+/g,' ').trim();
   const stableHash = value => {let hash=2166136261;for(const char of String(value??'')){hash^=char.charCodeAt(0);hash=Math.imul(hash,16777619);}return (hash>>>0).toString(36);};
   const slug = value => normalize(value).replace(/\s+/g,'_') || 'sem_identificacao';
   const isoDate = date => {
@@ -316,18 +323,45 @@
     next.users=next.users||{};const incomingPreferences=next.preferences&&typeof next.preferences==='object'&&!Array.isArray(next.preferences)?next.preferences:{};next.preferences={...defaultPreferences(),...incomingPreferences};next.preferences.programArtworkEnabled=next.preferences.programArtworkEnabled!==false;next.preferences.programArtworkOpacity=Math.max(5,Math.min(90,+next.preferences.programArtworkOpacity||14));enrichEpisodeTitles(next.globalCatalog);Object.values(next.channels).forEach(channel=>enrichEpisodeTitles(channel.catalog));return next;
   }
   function normalizeRating(value){
-    const text=String(value||'').trim();if(!text)return '';
+    let text=String(value||'').trim();if(!text)return '';
+    // A planilha guarda a classificacao como referencia de anexo do Notion, no formato
+    // "attachment:<uuid>:12_anos.png". O uuid tem numeros que enganam a leitura: um que
+    // comeca com "18" fazia um programa de 12 anos ser gravado como 18 anos — erro grave
+    // de classificacao indicativa numa grade de TV publica. Por isso lemos so o nome do
+    // arquivo, e se a referencia nao trouxer nome util preferimos nao classificar a chutar.
+    const arquivo=text.match(/([^:/\\?#]+)\.(?:png|jpe?g|svg|webp|gif)(?:[?#].*)?$/i);
+    if(arquivo)text=arquivo[1];
+    else if(/^attachment:/i.test(text)||/^https?:\/\//i.test(text))return '';
     if(/livre/i.test(text))return 'Livre';
-    if(/18/i.test(text))return '18_anos';
-    if(/16/i.test(text))return '16_anos';
-    if(/14/i.test(text))return '14_anos';
-    if(/12/i.test(text))return '12_anos';
-    if(/10/i.test(text))return '10_anos';
-    if(/6/i.test(text))return '6_anos';
-    return '';
+    // O numero precisa vir acompanhado de "anos" (ou de "classificacao"), senao um
+    // arquivo chamado "imagem_2025-10-16_134607708" viraria classificacao de 16 anos
+    // por causa da data. Um valor digitado a mao que seja so o numero tambem vale.
+    const idade=(text.match(/(\d{1,2})\s*[_-]?\s*anos/i)
+      ||text.match(/classifica[cç][aã]o[\s_-]*(\d{1,2})/i)
+      ||text.match(/^\s*(\d{1,2})\s*$/)||[])[1];
+    return ['18','16','14','12','10','6'].includes(idade)?idade+'_anos':'';
   }
   function normalizeLegacyProgram(row,sourceRow=0){
-    const get=(...names)=>{const entries=Object.entries(row||{}).map(([k,v])=>[normalize(k),v]);for(const name of names){const n=normalize(name);const found=entries.find(([k,v])=>(k===n||k.includes(n))&&String(v??'').trim());if(found)return found[1];}return '';};
+    const get=(...names)=>{
+      const entries=Object.entries(row||{}).map(([k,v])=>[normalize(k),v]);
+      const preenchido=([,v])=>String(v??'').trim();
+      // Primeira passada: nome EXATO da coluna. Antes bastava a coluna CONTER o nome
+      // procurado, e isso fazia get('ID') casar com "EMPRESA / DISTRIBUIDOR" — porque
+      // "distribuidor" contem "id". O resultado era o programa receber a distribuidora
+      // como identificador, e 32 obras da mesma produtora colidirem num id so: ao
+      // importar, uma sobrescrevia a outra e a maioria simplesmente sumia.
+      for(const name of names){const n=normalize(name);const achado=entries.find(([k,v])=>k===n&&preenchido([k,v]));if(achado)return achado[1];}
+      // Segunda passada: correspondencia parcial, util para variacoes como
+      // "DURACAO TOTAL (MIN)". Nomes muito curtos ficam de fora justamente porque
+      // sao os que produzem falso positivo dentro de palavras maiores.
+      for(const name of names){
+        const n=normalize(name);
+        if(n.length<4)continue;
+        const achado=entries.find(([k,v])=>k.includes(n)&&preenchido([k,v]));
+        if(achado)return achado[1];
+      }
+      return '';
+    };
     const title=String(get('OBRA AUDIOVISUAL','NOME DA OBRA','PROGRAMA','OBRA','TÍTULO')||'').trim();
     const externalId=String(get('ID','PROGRAMA_ID')||'').trim();
     const seasonRaw=String(get('TEMPORADA','TEMPORADAS')||'').trim();
@@ -742,7 +776,13 @@
   function applyImport(programs,{target='global',mode='merge',fileName='',sheet=''}={}){
     if(target==='global')requireAdmin();else requireChannelAccess();
     const list=target==='global'?state.globalCatalog:currentChannel().catalog;const before=clone(list);let next;
-    if(mode==='replace')next=programs.map(p=>({...p,scope:target==='global'?'global':'channel'}));else{const map=new Map(list.map(p=>[p.id,p])),titleIds=new Map(list.map(p=>[titleKey(p.title),p.id]));programs.forEach(p=>{const matchedId=map.has(p.id)?p.id:titleIds.get(titleKey(p.title)),old=matchedId?map.get(matchedId):null,finalId=old?.id||p.id,merged={...(old||{}),...p,id:finalId,scope:target==='global'?'global':'channel'};if(old){merged.seasons=mergeImportedSeasons(old.seasons||[],p.seasons||[]);merged.rights=mergeImportedRights(old.rights||[],p.rights||[]);}if(old&&!p.importFields?.origin)merged.origin=old.origin;if(old&&!p.importFields?.type)merged.type=old.type;if(old&&!p.importFields?.category)merged.category=old.category;if(old&&!p.importFields?.subgroups)merged.subgroups=clone(old.subgroups||[]);if(old&&!p.importFields?.colorGroup)merged.colorGroupId=old.colorGroupId||'';if(old&&!p.importFields?.artwork)merged.artwork=clone(old.artwork||null);if(old&&matchedId!==p.id)map.delete(matchedId);map.set(finalId,merged);titleIds.set(titleKey(merged.title),finalId);});next=[...map.values()];}
+    if(mode==='replace')next=programs.map(p=>({...p,scope:target==='global'?'global':'channel'}));else{const map=new Map(list.map(p=>[p.id,p])),titleIds=new Map(list.map(p=>[mergeTitleKey(p.title),p.id]));programs.forEach(p=>{const matchedId=map.has(p.id)?p.id:titleIds.get(mergeTitleKey(p.title)),old=matchedId?map.get(matchedId):null,finalId=old?.id||p.id,merged={...(old||{}),...p,id:finalId,scope:target==='global'?'global':'channel'};
+      // O casamento por mergeTitleKey so junta titulos que diferem em pontuacao,
+      // acento ou caixa. Nesses casos mantemos o nome ja cadastrado: deixar a ultima
+      // linha da planilha renomear o programa faria "O SHOW DA LUNA" virar
+      // "O SHOW DA LUNA!" a cada importacao, ao sabor de como alguem digitou.
+      if(old&&old.title)merged.title=old.title;
+      if(old){merged.seasons=mergeImportedSeasons(old.seasons||[],p.seasons||[]);merged.rights=mergeImportedRights(old.rights||[],p.rights||[]);}if(old&&!p.importFields?.origin)merged.origin=old.origin;if(old&&!p.importFields?.type)merged.type=old.type;if(old&&!p.importFields?.category)merged.category=old.category;if(old&&!p.importFields?.subgroups)merged.subgroups=clone(old.subgroups||[]);if(old&&!p.importFields?.colorGroup)merged.colorGroupId=old.colorGroupId||'';if(old&&!p.importFields?.artwork)merged.artwork=clone(old.artwork||null);if(old&&matchedId!==p.id)map.delete(matchedId);map.set(finalId,merged);titleIds.set(titleKey(merged.title),finalId);});next=[...map.values()];}
     enrichEpisodeTitles(next);if(target==='global')state.globalCatalog=next;else currentChannel().catalog=next;
     state.imports.unshift({id:uid('import'),at:new Date().toISOString(),user:session.user,channel:session.channel,fileName,sheet,target,mode,count:programs.length,before});state.imports=state.imports.slice(0,20);
     audit('Planilha importada',programs.length+' registros de '+(fileName||sheet),target==='global'?'global':'channel');return next.length;
@@ -803,7 +843,7 @@
   }
   function exportRows(){
     const programs=getCatalog(),programRows=[],seasonRows=[],episodeRows=[],rightRows=[];
-    const colorNames=new Map((state.colorGroups||[]).map(group=>[group.id,group.name]));programs.forEach(p=>{const normalized={ID:p.id,PROGRAMA:p.title,'OBRA AUDIOVISUAL':p.title,TIPO:p.type,ORIGEM:p.origin,CATEGORIA:p.category,SUBGRUPOS:normalizeSubgroups(p.subgroups).join('; '),GRUPO_COR:colorNames.get(p.colorGroupId)||'',IMAGEM:p.artwork?.url||p.artwork?.fileName||'',DURACAO:p.defaultDuration,CONTINUO:p.continuous?'Sim':'Não',ESCOPO:p.scope,STATUS:p.status||'','EMPRESA / DISTRIBUIDORA':p.distributor||'',NACIONALIDADE:p.nationality||'','PAÍS DE ORIGEM':p.countryOfOrigin||'',UF:p.stateOfOrigin||'',CIDADE:p.cityOfOrigin||'',DIRETORIA:p.directorate||'',FORMATO:p.contentFormat||'','FAIXA SUGERIDA':p.suggestedSlot||'','PÚBLICO-ALVO':p.targetAudience||'','ANO DE PRODUÇÃO':p.productionYear||'','ENTREGA PREVISTA':p.deliveryExpected||'','EXIBIÇÃO EM:':p.exhibitedAt||'',CL:p.cl||''};const sources=p.sourceRows?.length?p.sourceRows:[{}];sources.forEach(source=>programRows.push({...normalized,...clone(source),ID:p.id,PROGRAMA:p.title,'OBRA AUDIOVISUAL':p.title}));(p.seasons||[]).forEach(s=>{seasonRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,TEMPORADA:s.number,TITULO:s.title,ORDEM:s.order,'Nº EPISÓDIOS':s.episodes?.length||s.episodeCount||0,'DURAÇÃO TOTAL':s.totalDuration||'',ANO_PRODUCAO:s.productionYear||'',STATUS:s.status||'',DISTRIBUIDORA:s.distributor||'',PUBLICO_ALVO:s.targetAudience||'',CL:s.cl||'',FORMATO:s.contentFormat||'',FAIXA:s.suggestedSlot||'',ENTREGA:s.deliveryExpected||'',EXIBICAO:s.exhibitedAt||'',LINHA_ORIGEM:s.sourceRow||'',LINHAS_ORIGEM:(s.sourceRowNumbers||[]).join('; ')});(s.episodes||[]).forEach(e=>episodeRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,EPISODIO_ID:e.id,NUMERO:e.number,TITULO:e.title,DURACAO:e.duration||p.defaultDuration,SITUACAO:e.status||'available',SINOPSE:e.synopsis||''}));});(p.rights||[]).forEach(r=>rightRows.push({PROGRAMA_ID:p.id,DIREITO_ID:r.id,PROCESSO:r.processNumber||'',CONTRATO:r.contract,JANELA_VT:r.tvWindow||'',OTT:r.ott||'',TERRITORIO:r.territory||'',LIMITE_EPS_OTT:r.ottEpisodeLimit||'',PERIODO_DIAS:r.periodDays||'',INICIO:r.startsAt,FIM:r.endsAt,LIMITE:r.exhibitionLimit??'ILIMITADAS',REPRISE_CONTA:r.rerunsCount===false?'Não':'Sim',CANAIS:(r.channels||[]).join(', '),TEMPORADA:r.season||'',LINHA_ORIGEM:r.sourceRow||''}));});
+    const colorNames=new Map((state.colorGroups||[]).map(group=>[group.id,group.name]));programs.forEach(p=>{const normalized={ID:p.id,PROGRAMA:p.title,'OBRA AUDIOVISUAL':p.title,TIPO:p.type,ORIGEM:p.origin,CATEGORIA:p.category,SUBGRUPOS:normalizeSubgroups(p.subgroups).join('; '),GRUPO_COR:colorNames.get(p.colorGroupId)||'',IMAGEM:p.artwork?.url||p.artwork?.fileName||'',DURACAO:p.defaultDuration,CONTINUO:p.continuous?'Sim':'Não',ESCOPO:p.scope,STATUS:p.status||'','EMPRESA / DISTRIBUIDORA':p.distributor||'',NACIONALIDADE:p.nationality||'','PAÍS DE ORIGEM':p.countryOfOrigin||'',UF:p.stateOfOrigin||'',CIDADE:p.cityOfOrigin||'',DIRETORIA:p.directorate||'',FORMATO:p.contentFormat||'','FAIXA SUGERIDA':p.suggestedSlot||'','PÚBLICO-ALVO':p.targetAudience||'','ANO DE PRODUÇÃO':p.productionYear||'','ENTREGA PREVISTA':p.deliveryExpected||'','EXIBIÇÃO EM:':p.exhibitedAt||'',CL:p.cl||''};const sources=p.sourceRows?.length?p.sourceRows:[{}];sources.forEach(source=>programRows.push({...normalized,...clone(source),ID:p.id,PROGRAMA:p.title,'OBRA AUDIOVISUAL':p.title}));(p.seasons||[]).forEach(s=>{seasonRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,TEMPORADA:s.number,TITULO:s.title,ORDEM:s.order,'Nº EPISÓDIOS':s.episodes?.length||s.episodeCount||0,'DURAÇÃO TOTAL':s.totalDuration||'',ANO_PRODUCAO:s.productionYear||'',STATUS:s.status||'',DISTRIBUIDORA:s.distributor||'',PUBLICO_ALVO:s.targetAudience||'',CL:s.cl||'',FORMATO:s.contentFormat||'',FAIXA:s.suggestedSlot||'',ENTREGA:s.deliveryExpected||'',EXIBICAO:s.exhibitedAt||''});(s.episodes||[]).forEach(e=>episodeRows.push({PROGRAMA_ID:p.id,TEMPORADA_ID:s.id,EPISODIO_ID:e.id,NUMERO:e.number,TITULO:e.title,DURACAO:e.duration||p.defaultDuration,SITUACAO:e.status||'available',SINOPSE:e.synopsis||''}));});(p.rights||[]).forEach(r=>rightRows.push({PROGRAMA_ID:p.id,DIREITO_ID:r.id,PROCESSO:r.processNumber||'',CONTRATO:r.contract,JANELA_VT:r.tvWindow||'',OTT:r.ott||'',TERRITORIO:r.territory||'',LIMITE_EPS_OTT:r.ottEpisodeLimit||'',PERIODO_DIAS:r.periodDays||'',INICIO:r.startsAt,FIM:r.endsAt,LIMITE:r.exhibitionLimit??'ILIMITADAS',REPRISE_CONTA:r.rerunsCount===false?'Não':'Sim',CANAIS:(r.channels||[]).join(', '),TEMPORADA:r.season||''}));});
     const exhibitions=[];allowedChannelIds().forEach(channel=>getOccurrences(channel,isoDate(addDays(new Date(),-365)),isoDate(addDays(new Date(),730))).forEach(o=>exhibitions.push({CANAL:CHANNELS[channel].name,DATA:o.date,HORA:o.start,DURACAO:o.duration,PROGRAMA_ID:o.programId,PROGRAMA:o.title,TEMPORADA:o.season,EPISODIO:o.episodeNumber,TITULO_EPISODIO:o.episodeTitle,TIPO:o.type,REPRISE:o.isRerun?'Sim':'Não'})));
     return {programs:programRows,seasons:seasonRows,episodes:episodeRows,rights:rightRows,exhibitions};
   }

@@ -84,6 +84,19 @@
   }
   function allowedChannels(){return C().allowedChannelIds();}
   function isLocalHosting(){return ['localhost','127.0.0.1'].includes(location.hostname);}
+  // Ao abrir a página, o HTML já nasce mostrando a tela de login — é o estado padrão do
+  // arquivo. Só depois o sistema consulta a hospedagem e pergunta ao Microsoft se a
+  // sessão ainda vale, e isso leva um instante de rede. No caminho de volta do login da
+  // Microsoft, esse instante fazia a tela de entrada reaparecer antes da escolha de canal,
+  // como se o login tivesse falhado. Enquanto a verificação corre, escondemos o botão e
+  // dizemos o que está acontecendo; ele só aparece quando sabemos que não há sessão.
+  function mostrarVerificandoAcesso(verificando){
+    const overlay=$('#login-overlay');if(!overlay)return;
+    overlay.classList.toggle('is-checking',!!verificando);
+    const botao=$('#login-button');if(botao)botao.hidden=!!verificando;
+    const status=$('#login-status');
+    if(status)status.textContent=verificando?'Verificando seu acesso…':'Autenticação segura pelo Microsoft Entra.';
+  }
   async function ensureHostingAuthorization(){
     if(isLocalHosting())return true;
     const response=await fetch('/.auth/me',{credentials:'same-origin',cache:'no-store'});
@@ -421,7 +434,7 @@
     button.addEventListener('dragstart',e=>{if(resizing){e.preventDefault();return;}ui.dragItem=C().clone(item);e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('application/json',JSON.stringify(item));button.classList.add('dragging');});
     button.addEventListener('dragend',()=>{button.classList.remove('dragging');clearDropPreview();});
     const episode=item.episodeNumber||item.episodeTitle?'<span class="program-episode">'+esc(item.season?'T'+item.season+' · ':'')+(item.episodeNumber?'EP '+esc(item.episodeNumber):'')+(item.episodeTitle?' · '+esc(item.episodeTitle):'')+'</span>':'<span class="program-episode">'+esc(item.category||originLabel(item.origin))+'</span>',badges=(item.type==='live'?'<span class="live-pill">AO VIVO</span>':'')+(item.isRerun?'<span class="card-badge">REPRISE</span>':'')+(conflictIds.has(item.id)?'<span class="card-badge conflict-badge">CONFLITO</span>':'');
-    button.innerHTML='<span class="program-time"><b>'+esc(displayStart)+'</b><span>'+esc(realEnd)+'</span></span><span class="program-copy"><strong class="program-title">'+esc(item.title)+'</strong>'+episode+'</span><span class="program-badges">'+badges+'</span><span class="program-resize-grip" aria-hidden="true"></span>';
+    button.innerHTML='<span class="program-time"><b>'+esc(displayStart)+'</b><span>'+esc(realEnd)+'</span></span><span class="program-copy"><strong class="program-title" title="'+esc(item.title)+'">'+esc(item.title)+'</strong>'+episode+'</span><span class="program-badges">'+badges+'</span><span class="program-resize-grip" aria-hidden="true"></span>';
     button.setAttribute('aria-label',displayStart+' a '+realEnd+', '+item.title+'. Arraste para mover; use a alça inferior para ajustar a duração.');
     button.addEventListener('pointerdown',event=>{
       if(!event.target.closest('.program-resize-grip')||event.button!==0)return;
@@ -540,6 +553,34 @@
   function clearCatalogFilters(){['catalog-scope','catalog-type','catalog-origin','catalog-content','catalog-rights','catalog-category','catalog-subgroup'].forEach(id=>$('#'+id).value='all');$('#catalog-sort').value='title';$('#catalog-grouping').value='none';$('#catalog-search').value='';renderCatalog();}
   function catalogEpisodeCount(program){return (program.seasons||[]).reduce((sum,season)=>sum+Math.max((season.episodes||[]).length,+season.episodeCount||0),0);}
   function catalogExpiry(program){return (program.rights||[]).map(right=>right.endsAt).filter(Boolean).sort()[0]||'';}
+  // A busca do catálogo compara texto ao pé da letra. Isso faz alguém procurar
+  // "BORIS E RUFOS" e não achar "BORIS & RUFUS" — o título está lá, escrito de outro
+  // jeito. Quando a busca literal não devolve nada, oferecemos os títulos parecidos
+  // em vez de um "nenhum programa encontrado" que sugere que o cadastro sumiu.
+  function titulosParecidos(consulta,programas,limite=6){
+    const palavras=String(consulta||'').split(' ').filter(p=>p.length>2);
+    if(!palavras.length)return [];
+    return programas.map(programa=>{
+      const alvo=C().normalize(programa.title).split(' ').filter(Boolean);
+      if(!alvo.length)return null;
+      // Quantas palavras da busca aparecem no título, inteiras ou como começo de palavra?
+      const acertos=palavras.filter(p=>alvo.some(a=>a===p||a.startsWith(p)||p.startsWith(a))).length;
+      return acertos?{programa,nota:acertos/palavras.length}:null;
+    }).filter(Boolean).filter(x=>x.nota>=.5).sort((a,b)=>b.nota-a.nota).slice(0,limite).map(x=>x.programa);
+  }
+  function vazioComSugestoes(consulta,programas){
+    const sugestoes=consulta?titulosParecidos(consulta,programas):[];
+    if(!sugestoes.length)return '<div class="empty-state"><p>Nenhum programa encontrado.</p></div>';
+    return '<div class="empty-state"><p>Nenhum programa com esse texto exato.</p>'
+      +'<p class="muted">Estes têm nome parecido — pode ser diferença de grafia:</p>'
+      +'<div class="sugestoes-busca">'+sugestoes.map(programa=>'<button type="button" class="sugestao-busca" data-sugestao="'+esc(programa.title)+'">'+esc(programa.title)+'</button>').join('')+'</div></div>';
+  }
+  function ligarSugestoesDeBusca(){
+    $$('.sugestao-busca').forEach(botao=>botao.addEventListener('click',()=>{
+      const campo=$('#catalog-search');if(!campo)return;
+      campo.value=botao.dataset.sugestao;renderCatalog();
+    }));
+  }
   function catalogSearchText(program){return C().normalize([program.title,program.category,(program.subgroups||[]).join(' '),program.origin,(program.seasons||[]).flatMap(season=>[season.title,season.number,...(season.episodes||[]).flatMap(episode=>[episode.number,episode.title,episode.synopsis])]).join(' '),(program.rights||[]).flatMap(right=>[right.contract,right.startsAt,right.endsAt]).join(' '),JSON.stringify(program.raw||{})].join(' '));}
   function matchesCatalogRights(program,filter){if(filter==='all')return true;const rights=program.rights||[];if(filter==='none')return !rights.length||!rights.some(right=>right.endsAt||right.contract);const expiry=catalogExpiry(program);if(!expiry)return false;const today=C().parseLocalDate(new Date()),days=Math.ceil((C().parseLocalDate(expiry)-today)/86400000);if(filter==='expired')return days<0;if(filter==='expiring')return days>=0&&days<=60;return filter==='active'&&days>60;}
   function catalogKey(program){return program.scope+':'+program.id;}
@@ -563,7 +604,7 @@
   }
   function renderCatalogProgram(program){
     const row=document.createElement('article'),episodeMode=C().episodeModeFor(program),seasons=(program.seasons||[]).length,eps=catalogEpisodeCount(program),expiry=catalogExpiry(program)||'Sem data',colorGroup=colorGroupForProgram(program),canEdit=program.scope==='channel'||C().isAdmin(),key=catalogKey(program),selected=ui.catalogSelected.has(key),subgroups=(program.subgroups||[]).map(value=>'<span class="subgroup-pill">'+esc(value)+'</span>').join(''),actions=canEdit?'<button class="icon-button edit-program" type="button" aria-label="Editar programa"><span data-icon="settings"></span></button><button class="icon-button delete-program" type="button" aria-label="Excluir programa"><span data-icon="close"></span></button>':'<span class="muted">Somente leitura</span>',episodeCells=episodeMode==='catalog'?'<div class="catalog-cell"><span>Temporadas</span><strong>'+seasons+'</strong></div><div class="catalog-cell"><span>Episódios</span><strong>'+eps+'</strong></div>':episodeMode==='continuous'?'<div class="catalog-cell"><span>Controle</span><strong>Contínuo</strong></div><div class="catalog-cell"><span>Próximo número</span><strong>'+esc(program.episodeCounter||1)+'</strong></div>':'<div class="catalog-cell"><span>Formato</span><strong>'+esc(typeLabel(program.type))+'</strong></div><div class="catalog-cell"><span>Duração padrão</span><strong>'+esc(program.defaultDuration||30)+' min</strong></div>';
-    row.className='catalog-row'+(selected?' selected':'');row.dataset.catalogKey=key;row.innerHTML='<label class="catalog-check" title="Selecionar '+esc(program.title)+'"><input class="select-program" type="checkbox" '+(selected?'checked':'')+' '+(canEdit?'':'disabled')+'><span class="sr-only">Selecionar '+esc(program.title)+'</span></label><div class="catalog-main"><div class="catalog-badges"><span class="scope-pill '+(program.scope==='global'?'global':'')+'">'+(program.scope==='global'?'Global':'Canal')+'</span><span class="type-pill">'+esc(typeLabel(program.type))+'</span><span class="origin-pill">'+esc(originLabel(program.origin))+'</span>'+clBadgeHtml(program.cl)+(colorGroup?'<span class="color-group-pill"><i></i>'+esc(colorGroup.name)+'</span>':'')+'</div><h3>'+esc(program.title)+'</h3><p><strong>'+(program.category?esc(program.category):'Sem categoria')+'</strong></p><div class="subgroup-list">'+(subgroups||'<span class="subgroup-pill muted">Sem subgrupo</span>')+'</div></div>'+episodeCells+'<div class="catalog-cell"><span>Vigência</span><strong>'+esc(expiry==='Sem data'?expiry:C().formatDate(expiry))+'</strong></div><div class="catalog-actions">'+actions+'</div>';
+    row.className='catalog-row'+(selected?' selected':'');row.dataset.catalogKey=key;row.innerHTML='<label class="catalog-check" title="Selecionar '+esc(program.title)+'"><input class="select-program" type="checkbox" '+(selected?'checked':'')+' '+(canEdit?'':'disabled')+'><span class="sr-only">Selecionar '+esc(program.title)+'</span></label><div class="catalog-main"><div class="catalog-badges"><span class="scope-pill '+(program.scope==='global'?'global':'')+'">'+(program.scope==='global'?'Global':'Canal')+'</span><span class="type-pill">'+esc(typeLabel(program.type))+'</span><span class="origin-pill">'+esc(originLabel(program.origin))+'</span>'+clBadgeHtml(program.cl)+(colorGroup?'<span class="color-group-pill"><i></i>'+esc(colorGroup.name)+'</span>':'')+'</div><h3 title="'+esc(program.title)+'">'+esc(program.title)+'</h3><p><strong>'+(program.category?esc(program.category):'Sem categoria')+'</strong></p><div class="subgroup-list">'+(subgroups||'<span class="subgroup-pill muted">Sem subgrupo</span>')+'</div></div>'+episodeCells+'<div class="catalog-cell"><span>Vigência</span><strong>'+esc(expiry==='Sem data'?expiry:C().formatDate(expiry))+'</strong></div><div class="catalog-actions">'+actions+'</div>';
     if(colorGroup){const pill=row.querySelector('.color-group-pill');pill.style.setProperty('--group-bg',colorGroup.background);pill.style.setProperty('--group-text',colorGroup.text);pill.style.setProperty('--group-accent',colorGroup.accent);}
     row.querySelector('.select-program')?.addEventListener('change',event=>{event.target.checked?ui.catalogSelected.add(key):ui.catalogSelected.delete(key);row.classList.toggle('selected',event.target.checked);updateCatalogCommandbar();});
     row.querySelector('.edit-program')?.addEventListener('click',()=>openProgramForm(program));
@@ -590,7 +631,7 @@
     if(!C().session.channel)return;const scope=$('#catalog-scope').value||'all',all=C().getCatalog(scope);updateCatalogSelect('catalog-category',catalogKnownValues(all,'category'),'Todas as categorias');updateCatalogSelect('catalog-subgroup',catalogKnownValues(all,'subgroups'),'Todos os subgrupos');
     const type=$('#catalog-type').value||'all',origin=$('#catalog-origin').value||'all',category=$('#catalog-category').value||'all',subgroup=$('#catalog-subgroup').value||'all',content=$('#catalog-content').value||'all',rights=$('#catalog-rights').value||'all',sort=$('#catalog-sort').value||'title',grouping=$('#catalog-grouping').value||'none',query=C().normalize($('#catalog-search').value),list=all.filter(program=>{const episodes=catalogEpisodeCount(program),programSubgroups=(program.subgroups||[]).map(C().normalize);return(!query||catalogSearchText(program).includes(query))&&(type==='all'||program.type===type)&&(origin==='all'||program.origin===origin)&&(category==='all'||C().normalize(program.category)===category)&&(subgroup==='all'||programSubgroups.includes(subgroup))&&(content==='all'||(content==='episodes'&&episodes>0)||(content==='continuous'&&program.continuous)||(content==='empty'&&!episodes&&!program.continuous))&&matchesCatalogRights(program,rights);});
     const episodes=all.reduce((sum,p)=>sum+catalogEpisodeCount(p),0);$('#catalog-stats').innerHTML='<div class="metric"><span>Programas</span><strong>'+all.length+'</strong></div><div class="metric"><span>Resultados</span><strong>'+list.length+'</strong></div><div class="metric"><span>Episódios cadastrados</span><strong>'+episodes+'</strong></div><div class="metric"><span>Sem categoria</span><strong>'+all.filter(p=>!String(p.category||'').trim()||C().normalize(p.category)==='licenciado').length+'</strong></div>';
-    list.sort((a,b)=>sort==='expiry'?(catalogExpiry(a)||'9999').localeCompare(catalogExpiry(b)||'9999'):sort==='updated'?String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')):a.title.localeCompare(b.title,'pt-BR'));ui.catalogVisible=list;const box=$('#catalog-list');box.className='catalog-list view-'+ui.catalogView;$$('[data-catalog-view]').forEach(button=>button.classList.toggle('active',button.dataset.catalogView===ui.catalogView));box.innerHTML='';if(!list.length){box.innerHTML='<div class="empty-state"><p>Nenhum programa encontrado.</p></div>';updateCatalogCommandbar();return;}
+    list.sort((a,b)=>sort==='expiry'?(catalogExpiry(a)||'9999').localeCompare(catalogExpiry(b)||'9999'):sort==='updated'?String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')):a.title.localeCompare(b.title,'pt-BR'));ui.catalogVisible=list;const box=$('#catalog-list');box.className='catalog-list view-'+ui.catalogView;$$('[data-catalog-view]').forEach(button=>button.classList.toggle('active',button.dataset.catalogView===ui.catalogView));box.innerHTML='';if(!list.length){box.innerHTML=vazioComSugestoes(query,all);ligarSugestoesDeBusca();updateCatalogCommandbar();return;}
     if(grouping==='none')list.forEach(program=>box.append(renderCatalogProgram(program)));else{const groups=new Map();list.forEach(program=>{const label=catalogGroupLabel(program,grouping);if(!groups.has(label))groups.set(label,[]);groups.get(label).push(program);});[...groups.entries()].sort(([a],[b])=>a.localeCompare(b,'pt-BR')).forEach(([label,programs])=>{const section=document.createElement('section');section.className='catalog-group';section.innerHTML='<header><div><p class="eyebrow">Agrupamento</p><h3>'+esc(label)+'</h3></div><span>'+programs.length+' programa(s)</span></header><div class="catalog-group-items"></div>';const target=$('.catalog-group-items',section);programs.forEach(program=>target.append(renderCatalogProgram(program)));box.append(section);});}
     updateCatalogCommandbar();
   }
@@ -889,11 +930,12 @@
   }
   async function init(){
     renderAppVersion();renderIcons();bind();applyTheme(localStorage.getItem('ebc_theme')||'light');applyPropostaVisual(localStorage.getItem('ebc_visual_proposta')==='1');setSidebarCollapsed(localStorage.getItem('ebc_sidebar_collapsed')==='1');setGradeZoom(ui.zoom,false);if(localStorage.getItem('ebc_pref_text_large')==='1')document.body.classList.add('text-large');
+    mostrarVerificandoAcesso(true);
     if(!(await ensureHostingAuthorization()))return;
-    let identity=null;try{if(typeof inicializarMicrosoftGraph==='function')identity=await inicializarMicrosoftGraph();}catch(err){console.error(err);$('#login-status').textContent='Falha ao restaurar o login: '+(typeof descreverErroMicrosoft==='function'?descreverErroMicrosoft(err):err.message);}
+    let identity=null;try{if(typeof inicializarMicrosoftGraph==='function')identity=await inicializarMicrosoftGraph();}catch(err){console.error(err);mostrarVerificandoAcesso(false);$('#login-status').textContent='Falha ao restaurar o login: '+(typeof descreverErroMicrosoft==='function'?descreverErroMicrosoft(err):err.message);}
     if(identity){
-      try{await enterApp(identity);}catch(err){console.error(err);await C().clearLocalData();setAppAvailability(false);$('#login-overlay').classList.remove('hidden');$('#login-status').textContent='Acesso não liberado: '+(err.message||'não foi possível validar o OneDrive.');toast('O sistema não abriu dados locais sem validar sua conta e a pasta compartilhada.','error');}
-    }else{await C().clearLocalData();setAppAvailability(false);$('#login-overlay').classList.remove('hidden');}
+      try{await enterApp(identity);}catch(err){console.error(err);await C().clearLocalData();setAppAvailability(false);$('#login-overlay').classList.remove('hidden');mostrarVerificandoAcesso(false);$('#login-status').textContent='Acesso não liberado: '+(err.message||'não foi possível validar o OneDrive.');toast('O sistema não abriu dados locais sem validar sua conta e a pasta compartilhada.','error');}
+    }else{await C().clearLocalData();setAppAvailability(false);$('#login-overlay').classList.remove('hidden');mostrarVerificandoAcesso(false);}
     setInterval(updateNowIndicators,60000);
   }
   document.addEventListener('DOMContentLoaded',()=>init().catch(err=>{console.error(err);toast('Não foi possível iniciar o sistema: '+err.message,'error');}));

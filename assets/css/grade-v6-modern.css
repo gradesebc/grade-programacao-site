@@ -348,3 +348,50 @@ body.sidebar-collapsed .main-nav .nav-section-title{height:1px;margin:12px 10px;
 /* Linha de abertura da tela de entrada: existe no HTML mas só é usada pela
    proposta visual. No visual atual permanece oculta. */
 .login-lede{display:none}
+
+/* Aviso curto dentro de um painel, sem o peso do .notice de página inteira. */
+.notice-compact{margin:0 0 14px;padding:11px 13px;font-size:.8rem;line-height:1.45;border-radius:10px}
+.notice-compact em{font-style:normal;font-weight:700}
+
+/* Sugestões quando a busca literal do catálogo não acha nada. */
+.sugestoes-busca{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:14px}
+.sugestao-busca{min-height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--blue);background:var(--sky);color:var(--blue2);font-size:.8rem;font-weight:700}
+.sugestao-busca:hover{background:#fff}
+
+/* ===== Tooltip: textos longos podem quebrar linha =====
+   O tooltip base usa white-space:nowrap, ótimo para "Desfazer" e ruim para uma frase
+   inteira, que vira uma tira atravessando a tela. Aqui ele ganha largura máxima e
+   quebra de linha, mantendo o comportamento curto quando o texto é curto. */
+[data-tooltip]:after{
+  white-space:normal;
+  width:max-content;
+  max-width:min(280px,60vw);
+  line-height:1.35;
+  text-align:center;
+  box-shadow:0 8px 24px rgba(11,26,60,.22)
+}
+/* Nos títulos cortados da grade e do catálogo NAO usamos este tooltip: cartão e linha
+   têm overflow:hidden e recortariam o balão. Ali vale o title nativo do navegador,
+   que é desenhado fora da página e nunca é cortado. */
+
+/* ===== Tela de entrada enquanto o acesso é verificado =====
+   O HTML nasce mostrando o login. Enquanto o sistema confere a hospedagem e pergunta ao
+   Microsoft se a sessão vale, o botão fica oculto e aparece um indicador de progresso —
+   senão, na volta do login, a tela de entrada reaparece e parece que algo deu errado. */
+/* O atributo hidden NAO basta aqui: .button define display:inline-flex, e regra de
+   autor vence o display:none que o navegador da ao [hidden]. Por isso escondemos o
+   botao por CSS, com especificidade suficiente para ganhar. */
+#login-overlay.is-checking #login-button{display:none}
+#login-overlay.is-checking #login-status{
+  display:inline-flex;align-items:center;gap:9px;
+  color:var(--muted);font-weight:600
+}
+#login-overlay.is-checking #login-status::before{
+  content:"";width:15px;height:15px;flex:none;
+  border:2px solid var(--line);border-top-color:var(--blue);
+  border-radius:50%;animation:verificando-acesso .7s linear infinite
+}
+@keyframes verificando-acesso{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){
+  #login-overlay.is-checking #login-status::before{animation-duration:2.4s}
+}

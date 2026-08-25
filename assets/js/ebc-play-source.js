@@ -247,6 +247,23 @@
     if (vazio(programa?.synopsis) && conteudo.sinopse) { campos.synopsis = conteudo.sinopse; tocados.push('sinopse'); }
     if (!+programa?.productionYear && conteudo.ano) { campos.productionYear = conteudo.ano; tocados.push('ano de produção'); }
 
+    // O acervo sabe o formato da obra: Unitário, Série, Mini-série, Programa.
+    // "Unitário" e obra fechada — filme, documentario, especial: nao tem episodio.
+    if (vazio(programa?.contentFormat) && conteudo.tipo) { campos.contentFormat = conteudo.tipo; tocados.push('formato'); }
+
+    // Correcao de um erro que aparece na pratica: filme cadastrado com numeracao
+    // continua, ganhando "EP 1, EP 2, EP 3" a cada exibicao como se fosse serie.
+    // So mexemos no caso seguro — de 'continuous' para 'none', que nao tem temporada
+    // para perder. Nunca tocamos em 'catalog': saveProgram apaga as temporadas ao
+    // sair desse modo, e isso destruiria cadastro de episodio feito a mao.
+    const modoAtual = String(programa?.episodeMode || '').trim();
+    const semTemporadas = !(programa?.seasons || []).some(t => (t.episodes || []).length || +t.episodeCount > 0);
+    if (/unit[áa]rio/i.test(conteudo.tipo) && modoAtual === 'continuous' && semTemporadas) {
+      campos.episodeMode = 'none';
+      campos.continuous = false;
+      tocados.push('numeração de episódios (obra única não numera)');
+    }
+
     return {
       programId: programa?.id || '',
       title: programa?.title || '',
