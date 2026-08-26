@@ -822,8 +822,58 @@
     if(!ui.importData)return;ui.importData.target=C().isAdmin()?$('#import-target').value:'channel';ui.importData.mode=$('#import-mode').value;
     if(ui.importData.mode==='replace'){openModal({title:'Substituir catálogo?',kicker:'Ação avançada',body:'<p>Esta ação substituirá o catálogo de destino pelos <strong>'+ui.importData.programs.length+' registros</strong> da planilha.</p><label class="field">Digite <strong>SUBSTITUIR</strong><input id="replace-confirm" autocomplete="off"></label>',footer:'<button class="button button-secondary" data-modal-cancel type="button">Cancelar</button><button id="replace-go" class="button button-danger" type="button">Criar backup e substituir</button>'});$('[data-modal-cancel]').addEventListener('click',closeModal);$('#replace-go').addEventListener('click',()=>{if($('#replace-confirm').value!=='SUBSTITUIR'){toast('Digite SUBSTITUIR para confirmar.','error');return;}closeModal();applyConfirmedImport();});return;}applyConfirmedImport();
   }
+  // A importacao passa por duas idas ao OneDrive (a copia de seguranca e a gravacao do
+  // resultado). Sao alguns segundos em que a tela ficava exatamente igual, sem dizer
+  // nada — e a pessoa nao sabia se tinha funcionado, se travou, ou se podia sair.
+  let importacaoEmCurso = false;
+  function avisarSaidaDuranteImportacao(evento){
+    if (!importacaoEmCurso) return;
+    evento.preventDefault();
+    evento.returnValue = '';
+  }
+  function etapaDaImportacao(texto, passo, total) {
+    const caixa = $('#import-preview');
+    if (!caixa) return;
+    caixa.className = 'import-progress';
+    caixa.innerHTML = '<p class="import-progress-step"><span class="import-spinner" aria-hidden="true"></span>'
+      + esc(texto) + '</p>'
+      + '<div class="import-progress-bar"><span style="width:' + Math.round(passo / total * 100) + '%"></span></div>'
+      + '<p class="helper">Passo ' + passo + ' de ' + total + ' · não feche esta aba até terminar.</p>';
+  }
   async function applyConfirmedImport(){
-    try{const data=ui.importData,backup=C().snapshot('Antes da importação '+data.fileName,data.target==='global'?'global':'channel');await G().saveBackup(backup);C().applyImport(data.programs,{target:data.target,mode:data.mode,fileName:data.fileName,sheet:data.sheet});await G().saveNow();ui.importData=null;$('#confirm-import').disabled=true;$('#import-file').value='';$('#import-file-name').textContent='Nenhum arquivo selecionado';$('#import-preview').className='empty-state compact';$('#import-preview').innerHTML='<p>Importação concluída e registrada no histórico.</p>';renderAll();toast('Planilha importada com sucesso.','success');}catch(err){toast(err.message,'error');}
+    const botao = $('#confirm-import');
+    if (importacaoEmCurso) return;
+    importacaoEmCurso = true;
+    if (botao) botao.disabled = true;
+    // Enquanto o envio corre, o aviso de "alteracoes pendentes" do sistema esta desligado
+    // (as pendencias ja foram consumidas), entao fechar a aba nao alertaria ninguem.
+    window.addEventListener('beforeunload', avisarSaidaDuranteImportacao);
+    try{
+      const data=ui.importData;
+      etapaDaImportacao('Guardando uma cópia de segurança antes de alterar…', 1, 3);
+      const backup=C().snapshot('Antes da importação '+data.fileName,data.target==='global'?'global':'channel');
+      await G().saveBackup(backup);
+      etapaDaImportacao('Aplicando ' + data.programs.length + ' programa(s) ao catálogo…', 2, 3);
+      // Cede um quadro para a mensagem acima aparecer: o passo seguinte é síncrono e
+      // segura a tela até terminar.
+      await new Promise(r=>setTimeout(r,0));
+      C().applyImport(data.programs,{target:data.target,mode:data.mode,fileName:data.fileName,sheet:data.sheet});
+      etapaDaImportacao('Enviando para o OneDrive…', 3, 3);
+      await G().saveNow();
+      ui.importData=null;$('#import-file').value='';
+      $('#import-file-name').textContent='Nenhum arquivo selecionado';
+      $('#import-preview').className='empty-state compact';
+      $('#import-preview').innerHTML='<p>Importação concluída e registrada no histórico.</p>';
+      renderAll();toast('Planilha importada com sucesso.','success');
+    }catch(err){
+      $('#import-preview').className='empty-state compact';
+      $('#import-preview').innerHTML='<p>A importação não foi concluída. O catálogo continua como estava e a cópia de segurança foi preservada.</p>';
+      toast(err.message,'error');
+    }finally{
+      importacaoEmCurso = false;
+      window.removeEventListener('beforeunload', avisarSaidaDuranteImportacao);
+      if (botao) botao.disabled = !ui.importData;
+    }
   }
   function undoImport(){try{C().undoImport();renderAll();toast('Última importação desfeita.','success');}catch(err){toast(err.message,'error');}}
   function workbookName(prefix,ext){return prefix+'_'+C().isoDate(new Date())+'_'+C().CHANNELS[C().session.channel].slug+'_'+C().slug(C().session.user)+'.'+ext;}

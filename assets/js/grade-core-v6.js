@@ -671,7 +671,15 @@
         // senão dois contratos do mesmo programa geram avisos visualmente idênticos.
         const daTemporada=String(right.season??'').trim(),prefixo=daTemporada?'Temporada '+daTemporada+': ':'';
         if(right.endsAt){const days=Math.ceil((parseLocalDate(right.endsAt)-today)/86400000);if(days<0&&days>=-30)alerts.push({id:uid('al'),type:'expired',severity:'critical',programId:program.id,title:program.title,season:daTemporada,message:prefixo+'Vigência encerrada há '+Math.abs(days)+' dia(s).',date:right.endsAt,scope:program.scope});else if(days< -30)alerts.push({id:uid('al'),type:'expired',severity:'history',programId:program.id,title:program.title,season:daTemporada,message:prefixo+'Vigência encerrada há '+Math.abs(days)+' dia(s).',date:right.endsAt,scope:program.scope,historical:true});else if(days>=0&&days<=60)alerts.push({id:uid('al'),type:'expiring',severity:days<=15?'critical':'warning',programId:program.id,title:program.title,season:daTemporada,message:prefixo+(days===0?'Vigência termina hoje.':'Vigência termina em '+days+' dia(s).'),date:right.endsAt,scope:program.scope});}
-        if(Number.isFinite(+right.exhibitionLimit)){
+        // "ILIMITADAS" e "SEM RESTRIÇÃO" viram null na importação — é assim que o
+        // sistema guarda "sem limite". Só que +null vale 0 e passa no Number.isFinite,
+        // então todo contrato ilimitado virava um alerta de "0 exibições disponíveis",
+        // com o texto "0 de null utilizadas". Eram 119 dos 184 alertas: dois terços do
+        // painel apontando escassez justamente onde não há limite nenhum.
+        const limiteBruto=right.exhibitionLimit;
+        const semLimite=limiteBruto===null||limiteBruto===undefined||String(limiteBruto).trim()===''
+          ||/ilimit|sem restri/i.test(String(limiteBruto));
+        if(!semLimite&&Number.isFinite(+limiteBruto)&&+limiteBruto>0){
           // Contrato preso a uma temporada conta só as exibições daquela temporada.
           const temporada=String(right.season??'').trim(),porTemporada=temporada!=='';
           const contagem=right.rerunsCount===false?(porTemporada?primaryBySeason:primaryCounts):(porTemporada?allBySeason:allCounts);
@@ -682,6 +690,16 @@
     });
     const start=isoDate(startOfWeek(new Date())),items=getWeek(session.channel,start);
     conflicts(items).forEach((c,i)=>alerts.push({id:'conflict_'+i,type:'conflict',severity:'critical',title:c.a.title+' × '+c.b.title,message:'Conflito em '+formatDate(c.date)+' às '+c.b.start,date:c.date,programId:c.a.programId}));
+    // Um programa com dois contratos iguais na planilha gerava o mesmo aviso duas vezes,
+    // palavra por palavra. Repetir não informa nada e faz a lista parecer maior do que o
+    // problema é. Avisos de temporadas diferentes têm texto diferente e continuam separados.
+    const vistos=new Set();
+    const unicos=alerts.filter(alerta=>{
+      const chave=[alerta.type,alerta.programId||'',alerta.season||'',alerta.message,alerta.detail||''].join(' ');
+      if(vistos.has(chave))return false;
+      vistos.add(chave);return true;
+    });
+    alerts.length=0;alerts.push(...unicos);
     const rank={critical:0,warning:1,history:2};
     return alerts.sort((a,b)=>(rank[a.severity]??1)-(rank[b.severity]??1)||String(a.title||'').localeCompare(String(b.title||''),'pt-BR'));
   }

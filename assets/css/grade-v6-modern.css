@@ -395,3 +395,18 @@ body.sidebar-collapsed .main-nav .nav-section-title{height:1px;margin:12px 10px;
 @media (prefers-reduced-motion: reduce){
   #login-overlay.is-checking #login-status::before{animation-duration:2.4s}
 }
+
+/* ===== Progresso da importação =====
+   Ela faz duas idas ao OneDrive (cópia de segurança e gravação). Antes, a tela ficava
+   idêntica durante esses segundos e ninguém sabia se havia funcionado ou travado. */
+.import-progress{padding:18px;border:1px solid var(--line);border-radius:13px;background:var(--surface,#fff)}
+.import-progress-step{display:flex;align-items:center;gap:10px;margin:0 0 12px;font-weight:650;font-size:.88rem}
+.import-spinner{width:15px;height:15px;flex:none;border:2px solid var(--line);border-top-color:var(--blue);border-radius:50%;animation:import-girando .7s linear infinite}
+.import-progress-bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden}
+.import-progress-bar span{display:block;height:100%;border-radius:99px;background:var(--blue);transition:width .3s ease}
+.import-progress .helper{margin:8px 0 0}
+@keyframes import-girando{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion: reduce){
+  .import-spinner{animation-duration:2.4s}
+  .import-progress-bar span{transition:none}
+}
