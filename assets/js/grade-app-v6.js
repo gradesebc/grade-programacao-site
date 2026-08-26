@@ -173,8 +173,19 @@
   }
   async function enterApp(identity){
     validateHostingIdentity(identity);C().setUser(identity,{bootstrap:false});await C().init(identity);
-    await G().init();C().setUser(identity,{bootstrap:true});$('#sidebar-user').textContent=C().session.user+' · '+C().session.role;applyRoleUi();renderChannels();
+    const onlineOk=await G().init();C().setUser(identity,{bootstrap:true});$('#sidebar-user').textContent=C().session.user+' · '+C().session.role;applyRoleUi();renderChannels();
     $('#login-overlay').classList.add('hidden');setAppAvailability(true);iniciarRelogioNoAr();
+    // Pasta do OneDrive e permissão de canal são duas coisas diferentes, e a lista de
+    // usuários vem de dentro da pasta. Quando a leitura falha, quem não é administrador
+    // de resgate fica sem lista nenhuma — e antes recebia a mensagem de "sem canal
+    // liberado", que manda pedir ao administrador um acesso que a pessoa já tem.
+    if(!onlineOk&&!allowedChannels().length){
+      showChannels();
+      $('#channel-greeting').innerHTML='<strong>Não foi possível ler a pasta compartilhada do OneDrive.</strong><br>'
+        +esc(G().ultimoErro||'A pasta não respondeu.')
+        +'<br><br>Isto <strong>não</strong> é falta de permissão de canal — seu cadastro pode estar correto e esta tela aparecer mesmo assim, porque a lista de usuários mora dentro da pasta. Avise quem administra o sistema e passe esta mensagem.';
+      return;
+    }
     if(!allowedChannels().length){showChannels();$('#channel-greeting').textContent='Sua conta foi autenticada, mas ainda nao recebeu acesso a nenhum canal. Solicite a liberacao a um administrador.';return;}
     if(C().session.channel&&allowedChannels().includes(C().session.channel))await selectChannel(C().session.channel);else showChannels();
   }

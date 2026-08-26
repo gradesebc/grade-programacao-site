@@ -144,9 +144,12 @@
     if(remote){core().mergeChannel(remote);knownSnapshots.set('channel:'+channel,remote);knownEtags.set('channel:'+channel,record.file.eTag);}else await loadLegacyChannel(channel);
     window.dispatchEvent(new CustomEvent('ebc:remote-loaded',{detail:{channel}}));status('saved','OneDrive conectado',remote?'Última versão compartilhada carregada.':'Canal pronto para o primeiro salvamento.');return !!remote;
   }
+  // Motivo da última falha de conexão, para a tela de entrada poder dizer a verdade
+  // em vez de culpar a permissão de canal.
+  let ultimoErro='';
   async function init(){
     if(typeof microsoftGraphConectado!=='function'||!microsoftGraphConectado()){status('offline','Aguardando login Microsoft','Entre com a conta EBC para ativar o salvamento online.');return false;}
-    status('saving','Conectando ao OneDrive...','Validando a pasta compartilhada.');try{await graphResolverPastaRaiz();connected=true;await loadGlobal();startPolling();status('saved','OneDrive conectado','Salvamento automático online ativo.');return true;}catch(err){connected=false;stopPolling();console.error(err);status('error','OneDrive indisponível',err.message||'Não foi possível acessar a pasta compartilhada.');return false;}
+    status('saving','Conectando ao OneDrive...','Validando a pasta compartilhada.');try{await graphResolverPastaRaiz();connected=true;ultimoErro='';await loadGlobal();startPolling();status('saved','OneDrive conectado','Salvamento automático online ativo.');return true;}catch(err){connected=false;stopPolling();console.error(err);ultimoErro=err&&err.message||'Não foi possível acessar a pasta compartilhada.';status('error','OneDrive indisponível',ultimoErro);return false;}
   }
   async function sync(){
     if(!connected&&!(await init()))return false;if(core().hasDirty())await saveNow();else{await loadGlobal();if(core().session.channel)await loadChannel(core().session.channel);}return true;
@@ -171,5 +174,5 @@
   }
   window.addEventListener('ebc:data-changed',schedule);
   window.addEventListener('beforeunload',event=>{if(core()?.hasDirty?.()){event.preventDefault();event.returnValue='';}});
-  window.EBCGraphStore={init,sync,saveNow,pullRemote,loadGlobal,loadChannel,listHistory,restoreVersion,saveBackup,get connected(){return connected;}};
+  window.EBCGraphStore={init,sync,saveNow,pullRemote,loadGlobal,loadChannel,listHistory,restoreVersion,saveBackup,get ultimoErro(){return ultimoErro;},get connected(){return connected;}};
 })();
