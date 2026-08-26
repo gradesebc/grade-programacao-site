@@ -501,3 +501,204 @@ body.theme-dark .alerta-secao-titulo{background:var(--surface-2)}
   .alerta-linha::before{left:14px;right:14px}
   .alerta-arquivo summary{padding:9px 14px}
 }
+
+/* ===== Varredura de fichas: aviso flutuante =====
+   A varredura continua quando a pessoa sai da administração, então o progresso
+   precisa de um lugar visível de qualquer página. Fica acima do rodapé e abaixo
+   da região de avisos, para não competir com os toasts. */
+.varredura-flutuante{position:fixed;left:18px;bottom:18px;z-index:120;width:270px;
+  padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--surface,#fff);
+  box-shadow:0 12px 34px rgba(11,26,60,.16)}
+.varredura-flutuante[hidden]{display:none}
+.varredura-flutuante-topo{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:.82rem}
+.varredura-flutuante-ponto{width:9px;height:9px;border-radius:50%;background:var(--blue);animation:pulse 1.1s infinite}
+.varredura-flutuante-barra{height:5px;border-radius:999px;background:var(--line);overflow:hidden}
+.varredura-flutuante-barra span{display:block;height:100%;width:0;border-radius:999px;background:var(--blue);transition:width .25s ease}
+.varredura-flutuante p{margin:7px 0 0;font-size:.72rem;color:var(--muted);line-height:1.35}
+body.theme-dark .varredura-flutuante{background:var(--surface);border-color:var(--line)}
+@media(prefers-reduced-motion:reduce){.varredura-flutuante-ponto{animation:none}}
+
+/* ===== Métricas de exibição =====
+   O problema aqui era o mesmo dos alertas: cada programa ocupando uma faixa inteira
+   com sombra e borda de destaque. Com 199 programas isso vira um rolo interminável
+   sem jeito de achar nada. Linha densa, barra de comparação e colunas em tela larga. */
+.metrica-barra-comandos{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.metrica-barra-comandos .search-field{flex:1 1 260px;min-width:200px}
+.metrica-barra-comandos .field{flex:0 0 auto}
+.metrica-barra-comandos .helper{margin-left:auto;white-space:nowrap}
+.metrica-cabecalho{display:grid;grid-template-columns:minmax(150px,1.6fr) minmax(56px,.7fr) 52px 74px 74px 44px;
+  gap:12px;padding:0 15px 6px;font-size:.66rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.metrica-cabecalho[hidden]{display:none}
+.metrica-cabecalho span:not(:first-child):not(:nth-child(2)){text-align:right}
+.metrics-list{display:grid;gap:0;border:1px solid var(--line);border-radius:13px;background:var(--surface,#fff);overflow:hidden}
+.metrica-linha{display:grid;grid-template-columns:minmax(150px,1.6fr) minmax(56px,.7fr) 52px 74px 74px 44px;
+  gap:12px;align-items:center;padding:9px 15px;position:relative}
+.metrica-linha::before{content:"";position:absolute;left:15px;right:15px;top:0;height:1px;background:var(--line)}
+.metrics-list > .metrica-linha:first-child::before{display:none}
+.metrica-linha:hover{background:var(--sky)}
+.metrica-nome{font-weight:700;font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.metrica-fatia{height:6px;border-radius:999px;background:var(--line);overflow:hidden}
+.metrica-fatia span{display:block;height:100%;border-radius:999px;background:var(--channel-primary,var(--blue))}
+.metrica-dado{font-size:.8rem;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+.metrica-dado b{font-weight:700;color:var(--ink)}
+.metrica-partido i{font-style:normal;margin:0 2px;color:#9aa7ba}
+.metrica-dias{font-size:.74rem}
+@media(min-width:1600px){
+  .metrics-list{grid-template-columns:1fr 1fr}
+  .metrics-list > .metrica-linha:nth-child(even){box-shadow:inset 1px 0 0 var(--line)}
+  .metrics-list > .metrica-linha:nth-child(2)::before{display:none}
+  .metrica-cabecalho{max-width:50%}
+}
+@media(max-height:820px){
+  .metrica-barra-comandos{margin-bottom:9px}
+  .metrica-linha{padding:7px 14px}
+  .metrica-linha::before{left:14px;right:14px}
+}
+@media(max-width:760px){
+  .metrica-cabecalho{display:none}
+  .metrica-linha{grid-template-columns:minmax(0,1fr) auto auto;row-gap:5px;padding:10px 14px}
+  .metrica-nome{grid-column:1/-1}
+  .metrica-fatia{grid-column:1/-1}
+  .metrica-dias{display:none}
+}
+body.theme-dark .metrics-list{background:var(--surface);border-color:var(--line)}
+
+/* ===== Administração em grupos =====
+   Eram nove painéis empilhados em coluna única, com a limpeza global — que apaga
+   dados de todos os canais — no meio de ajustes inofensivos de aparência. Agora
+   cada assunto tem seu grupo, e o grupo perigoso é marcado como tal. */
+.admin-grupo{margin-top:26px}
+.admin-grupo-titulo{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+  margin-bottom:11px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.admin-grupo-titulo h3{margin:0;font-size:.76rem;font-weight:800;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted)}
+.admin-grupo-titulo p{margin:0;flex:1 1 240px;min-width:0;font-size:.76rem;color:var(--muted)}
+.admin-grupo-corpo{display:grid;gap:14px}
+.admin-grupo-corpo > .panel{margin-top:0}
+/* Aparência são dois painéis curtos: lado a lado quando há largura para isso. */
+@media(min-width:1400px){
+  .admin-grupo-duplo .admin-grupo-corpo{grid-template-columns:1fr 1fr;align-items:start}
+}
+.admin-grupo-perigo .admin-grupo-titulo{border-bottom-color:#e7b4ae}
+.admin-grupo-perigo .admin-grupo-titulo h3{color:var(--danger)}
+.admin-grupo-perigo .admin-grupo-titulo p{color:#9a4034}
+@media(max-height:820px){
+  .admin-grupo{margin-top:18px}
+  .admin-grupo-titulo{margin-bottom:9px;padding-bottom:6px}
+  .admin-grupo-corpo{gap:11px}
+}
+body.theme-dark .admin-grupo-perigo .admin-grupo-titulo p{color:#e8a89e}
+
+/* ===== Ficha do programa =====
+   Substitui a grade de dez campos de peso igual. O programa vira cabeçalho com a
+   capa (horizontal) ao fundo sob o mesmo véu de leitura dos cartões da grade, a
+   vigência sobe para uma faixa sempre visível e os campos viram seções na trilha. */
+.modal-ficha .modal-body{padding:0}
+.modal-ficha > header{display:none}
+.ficha-cabecalho{position:relative;overflow:hidden;padding:20px 26px 16px;border-bottom:1px solid var(--line)}
+.ficha-arte{position:absolute;inset:0;background-size:cover;background-position:center right;opacity:.38}
+.ficha-veu{position:absolute;inset:0;background:linear-gradient(90deg,var(--surface,#fff) 0%,var(--surface,#fff) 30%,color-mix(in srgb,var(--surface,#fff) 80%,transparent) 54%,transparent 100%)}
+.ficha-cabecalho-corpo{position:relative}
+.ficha-titulo{margin:6px 0 9px;font-size:1.8rem;font-weight:700;letter-spacing:-.015em;line-height:1.1}
+.ficha-selos{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.ficha-selo{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;
+  border:1px solid var(--line);background:color-mix(in srgb,var(--surface,#fff) 86%,transparent);
+  font-size:.72rem;font-weight:600;color:var(--muted)}
+.ficha-selo.solido{background:var(--navy);border-color:var(--navy);color:#fff}
+.ficha-selo-cl{width:20px;height:20px;display:block}
+.ficha-situacao{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 26px 0;padding:10px 15px;
+  border:1px solid var(--line);border-radius:11px;font-size:.79rem}
+.ficha-situacao i{width:1px;height:15px;background:currentColor;opacity:.25;display:block}
+.ficha-situacao strong{font-weight:700}
+.ficha-ponto{width:9px;height:9px;border-radius:50%;background:currentColor;flex:0 0 auto}
+.ficha-situacao.t-ok{border-color:#c8e2d5;background:#f3faf6;color:#0f6b4c}
+.ficha-situacao.t-vencendo,.ficha-situacao.t-neutro{border-color:#ecd9b0;background:#fdf8ec;color:#7a4a00}
+.ficha-situacao.t-vencida{border-color:#e7b4ae;background:#fff4f2;color:var(--danger)}
+.ficha-falta{font-weight:700}
+.ficha-atalho{margin-left:auto;border:0;background:transparent;color:inherit;font-weight:700;font-size:.78rem;text-decoration:underline;padding:0}
+.ficha-corpo{display:flex;min-height:0;margin-top:16px}
+.ficha-trilha{width:196px;flex:0 0 auto;padding:0 12px 18px 20px;display:flex;flex-direction:column;gap:3px}
+.ficha-trilha-item{display:flex;align-items:center;gap:9px;height:42px;padding:0 13px;border:0;border-radius:10px;
+  background:transparent;width:100%;text-align:left;font-size:.84rem;font-weight:600;color:var(--muted)}
+.ficha-trilha-item[hidden]{display:none}
+.ficha-trilha-item:hover{background:var(--surface-soft,#f4f7fb)}
+.ficha-trilha-item.ativo{background:var(--sky);color:var(--blue2)}
+.ficha-conta{margin-left:auto;font-size:.7rem;font-variant-numeric:tabular-nums;color:#8e9cb3}
+.ficha-conta.alerta{width:8px;height:8px;border-radius:50%;background:var(--warning);text-indent:-999px;overflow:hidden}
+.ficha-paineis{flex:1 1 auto;min-width:0;padding:0 26px 20px 22px;border-left:1px solid var(--line)}
+.ficha-painel{display:none}
+.ficha-painel.ativo{display:block}
+.ficha-bloco{margin-bottom:16px}
+.ficha-rotulo{display:block;margin-bottom:6px;font-size:.68rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.ficha-grade{display:grid;gap:13px;margin-bottom:16px}
+.ficha-grade.dois{grid-template-columns:1fr 1fr}
+.ficha-grade.tres{grid-template-columns:1fr 1fr 1fr}
+.ficha-grade.hidden{display:none}
+.ficha-campo{display:block;min-width:0}
+.ficha-campo.estreito{max-width:180px}
+.ficha-corpo input:not([type=checkbox]),.ficha-corpo select,.ficha-corpo textarea{
+  width:100%;min-height:var(--control);padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface,#fff);color:var(--ink)}
+.ficha-corpo textarea{min-height:88px;resize:vertical;line-height:1.5}
+.ficha-destaque{font-size:1.05rem;font-weight:600;min-height:52px}
+.ficha-tipos{display:flex;gap:7px;flex-wrap:wrap}
+.ficha-tipo{height:34px;padding:0 14px;border:1px solid var(--line);border-radius:999px;background:var(--surface,#fff);
+  font-size:.78rem;font-weight:600;color:var(--muted)}
+.ficha-tipo:hover{border-color:var(--blue)}
+.ficha-tipo.ativo{border-color:var(--navy);background:var(--navy);color:#fff}
+.ficha-etiquetas{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-height:var(--control);
+  padding:5px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface,#fff)}
+.ficha-etiquetas input{flex:1 1 110px;min-width:100px;border:0!important;min-height:30px!important;padding:0!important;background:transparent!important}
+.ficha-etiqueta{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 6px 0 10px;border-radius:999px;
+  background:var(--sky);color:var(--blue2);font-size:.74rem;font-weight:600}
+.ficha-etiqueta button{border:0;background:transparent;color:inherit;font-size:1rem;line-height:1;padding:0 3px}
+/* Temporadas: lista à esquerda, uma temporada aberta à direita. Todas continuam no
+   DOM, escondidas por CSS, porque a gravação varre .season-editor. */
+.ficha-temporadas{display:grid;grid-template-columns:206px minmax(0,1fr);gap:18px}
+.ficha-temporadas.hidden{display:none}
+.ficha-temporada-abas{display:flex;flex-direction:column;gap:6px;margin:6px 0 8px}
+.ficha-temporada-aba{display:flex;align-items:center;gap:9px;min-height:42px;padding:0 12px;border:1px solid var(--line);
+  border-radius:10px;background:var(--surface,#fff);font-size:.82rem;font-weight:600;text-align:left}
+.ficha-temporada-aba.ativa{border-color:var(--blue);background:var(--sky);color:var(--blue2)}
+.ficha-temporada-qtd{margin-left:auto;font-size:.7rem;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+.ficha-temporada-aba.ativa .ficha-temporada-qtd{color:var(--blue2)}
+.ficha-temporada-detalhe{border:1px solid var(--line);border-radius:13px;padding:14px 16px;background:var(--surface,#fff)}
+.season-editor{display:none}
+.season-editor.ativa{display:block}
+.ficha-temporada-topo{display:grid;grid-template-columns:96px minmax(0,1fr) 118px auto;gap:11px;align-items:end;
+  padding-bottom:13px;margin-bottom:11px;border-bottom:1px solid var(--line)}
+.ficha-remover{height:42px;padding:0 13px;border:1px solid #efafa9;border-radius:10px;background:var(--surface,#fff);
+  color:var(--danger);font-size:.78rem;font-weight:700}
+.ficha-episodios-topo,.episode-row{display:grid;grid-template-columns:64px minmax(0,1fr) 84px 38px;gap:8px;align-items:center}
+.ficha-episodios-topo{padding:0 2px 5px;font-size:.65rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.episode-editor{display:grid;gap:6px;max-height:300px;overflow:auto;padding-right:2px}
+.episode-row input{min-height:38px!important;padding:6px 10px!important}
+.episode-row .icon-button{width:38px;min-height:38px}
+.ficha-adicionar{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 13px;margin-top:10px;
+  border:1px dashed #c3cfe0;border-radius:10px;background:transparent;color:var(--blue2);font-size:.8rem;font-weight:700}
+.ficha-adicionar svg{width:16px;height:16px}
+.ficha-imagem-layout{display:grid;grid-template-columns:196px minmax(0,1fr);gap:18px;align-items:start}
+.ficha-previa{aspect-ratio:16/9;border-radius:11px;border:1px solid var(--line);background:var(--canvas) center/cover no-repeat;
+  display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#93a1b8}
+.ficha-previa.vazia{border-style:dashed}
+.ficha-aviso{margin-top:12px;padding:9px 12px;border:1px solid #ecd9b0;border-radius:10px;background:#fdf8ec;color:#7a4a00}
+.ficha-rodape-nota{margin-right:auto;font-size:.74rem;color:var(--muted)}
+@media(max-height:820px){
+  .ficha-cabecalho{padding:15px 24px 12px}
+  .ficha-titulo{font-size:1.5rem;margin:4px 0 7px}
+  .ficha-corpo{margin-top:12px}
+  .ficha-bloco,.ficha-grade{margin-bottom:12px}
+  .episode-editor{max-height:210px}
+}
+@media(max-width:900px){
+  .ficha-corpo{flex-direction:column}
+  .ficha-trilha{width:auto;flex-direction:row;overflow:auto;padding:0 20px 10px}
+  .ficha-trilha-item{width:auto;white-space:nowrap}
+  .ficha-paineis{border-left:0;padding:0 20px 18px}
+  .ficha-grade.dois,.ficha-grade.tres{grid-template-columns:1fr}
+  .ficha-temporadas,.ficha-imagem-layout{grid-template-columns:1fr}
+  .ficha-temporada-abas{flex-direction:row;overflow:auto}
+  .ficha-temporada-topo{grid-template-columns:1fr 1fr}
+}
+body.theme-dark .ficha-situacao.t-ok{background:color-mix(in srgb,#16825d 14%,var(--surface));color:#7fd7b4}
+body.theme-dark .ficha-situacao.t-vencendo,body.theme-dark .ficha-situacao.t-neutro{background:color-mix(in srgb,#a66300 16%,var(--surface));color:#f0c98a}
+body.theme-dark .ficha-situacao.t-vencida{background:color-mix(in srgb,#b42318 16%,var(--surface));color:#f3a89f}

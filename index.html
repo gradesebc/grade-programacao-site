@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta name="application-version" content="6.8.0">
-  <meta name="application-release-date" content="25/08/2026">
+  <meta name="application-version" content="6.9.0">
+  <meta name="application-release-date" content="26/08/2026">
   <meta name="author" content="Henrique Rude (HDut)">
   <meta name="dcterms.creator" content="Henrique Rude (HDut)">
   <meta name="generator" content="Sistema de Grade EBC — desenvolvido por Henrique Rude (HDut)">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://pt.wikipedia.org https://play.ebc.com.br https://public.ebc.com.br https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://pt.wikipedia.org https://api.themoviedb.org https://play.ebc.com.br https://public.ebc.com.br https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
   <title>Sistema de Grade - EBC</title>
-  <link rel="stylesheet" href="assets/css/fontes-sistema.css?v=20260825-v680">
-  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260825-v680">
-  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260825-v680">
+  <link rel="stylesheet" href="assets/css/fontes-sistema.css?v=20260826-v690">
+  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260826-v690">
+  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260826-v690">
   <!-- Proposta visual: inerte enquanto o <body> não tiver a classe visual-proposta.
        Liga e desliga em Administração > Aparência, sem afetar ninguém mais. -->
-  <link rel="stylesheet" href="assets/css/grade-v6-proposta.css?v=20260825-v680">
+  <link rel="stylesheet" href="assets/css/grade-v6-proposta.css?v=20260826-v690">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -31,7 +31,7 @@
       <p class="muted">Entre com sua conta corporativa para acessar as grades compartilhadas.</p>
       <button id="login-button" class="button button-primary button-large" type="button"><span data-icon="microsoft"></span> Entrar com a Microsoft</button>
       <p id="login-status" class="helper" role="status">Autenticação segura pelo Microsoft Entra.</p>
-      <p class="app-version app-version-login" data-app-version>Versão 6.8.0 · 25/08/2026</p>
+      <p class="app-version app-version-login" data-app-version>Versão 6.9.0 · 26/08/2026</p>
     </section>
   </div>
   <div id="channel-overlay" class="overlay hidden" aria-labelledby="channel-title">
@@ -67,7 +67,7 @@
         <p id="sync-detail">Aguardando conexão com o OneDrive.</p>
         <button id="sync-now" class="text-button" type="button"><span data-icon="cloud"></span><span class="sidebar-action-label">Sincronizar agora</span></button>
       </div>
-      <div class="sidebar-version" data-version-short="v6.8.0" title="Versão instalada: 6.8.0 · 25/08/2026"><span data-app-version>Versão 6.8.0 · 25/08/2026</span></div>
+      <div class="sidebar-version" data-version-short="v6.9.0" title="Versão instalada: 6.9.0 · 26/08/2026"><span data-app-version>Versão 6.9.0 · 26/08/2026</span></div>
       <div class="sidebar-actions">
         <button id="switch-channel" class="button button-quiet" type="button"><span data-icon="switch"></span><span class="sidebar-action-label">Trocar canal</span></button>
         <button id="logout-button" class="button button-quiet" type="button"><span data-icon="logout"></span><span class="sidebar-action-label">Sair</span></button>
@@ -147,6 +147,12 @@
       <section id="page-metrics" class="page" aria-labelledby="metrics-title">
         <div class="page-heading"><div><p class="eyebrow">Acompanhamento</p><h2 id="metrics-title">Métricas de exibição</h2><p class="muted">Veja quantas vezes cada programa foi exibido e quanto tempo ocupou na grade deste canal.</p></div><label class="field metrics-period-field">Período<select id="metrics-period"><option value="week">Semana selecionada</option><option value="month">Mês atual</option><option value="year">Ano atual</option><option value="all">Todo o histórico disponível</option></select></label></div>
         <div id="metrics-summary" class="metric-grid"></div>
+        <div class="metrica-barra-comandos">
+          <label class="search-field"><span data-icon="search"></span><input id="metrics-search" type="search" placeholder="Procurar programa"></label>
+          <label class="field">Ordenar por<select id="metrics-sort"><option value="minutes">Tempo ocupado</option><option value="count">Número de exibições</option><option value="reruns">Reprises</option><option value="title">Nome do programa</option></select></label>
+          <span id="metrics-count" class="helper"></span>
+        </div>
+        <div class="metrica-cabecalho" aria-hidden="true"><span>Programa</span><span>Participação</span><span>Exibições</span><span>Tempo</span><span>Principais / reprises</span><span>Dias</span></div>
         <div id="metrics-list" class="metrics-list"></div>
       </section>
       <section id="page-import" class="page" aria-labelledby="import-title">
@@ -170,45 +176,81 @@
       <section id="page-admin" class="page" aria-labelledby="admin-title">
         <div class="page-heading"><div><p class="eyebrow">Área controlada</p><h2 id="admin-title">Administração e limpeza</h2><p class="muted">Toda limpeza cria uma cópia de segurança antes de alterar os dados.</p></div></div>
         <div id="permission-notice" class="notice"></div>
-        <article class="panel release-panel">
-          <div><p class="eyebrow">Identificação do sistema</p><h3>Versão instalada</h3><p class="muted">Informe este número ao relatar uma dúvida, correção ou diferença entre computadores.</p></div>
-          <strong class="release-badge" data-app-version>Versão 6.8.0 · 25/08/2026</strong>
-        </article>
-        <article class="panel admin-users-panel">
+
+        <section class="admin-grupo">
+          <header class="admin-grupo-titulo"><h3>Acesso</h3><p>Quem entra no sistema e o que cada perfil pode fazer.</p></header>
+          <div class="admin-grupo-corpo">
+            <article class="panel admin-users-panel">
           <div class="panel-heading"><div><h3>Usuários e permissões</h3><p class="muted">Administradores acessam todos os canais; operadores recebem apenas os canais indicados.</p></div><button id="new-user-profile" class="button button-secondary" type="button"><span data-icon="plus"></span> Adicionar usuário</button></div>
           <div class="notice notice-compact"><strong>São duas autorizações separadas.</strong><br>O cadastro abaixo define <em>o que</em> a pessoa pode editar. Para ela conseguir <em>ler e salvar</em>, o e-mail também precisa estar no compartilhamento da pasta do OneDrive onde as grades ficam. Sem isso, ela entra no sistema e vê a mensagem de que falta acesso à pasta.</div>
           <div id="user-profile-list" class="timeline-list"></div>
         </article>
-        <article class="panel admin-opacity-panel" style="margin-top:20px">
+          </div>
+        </section>
+        <section class="admin-grupo">
+          <header class="admin-grupo-titulo"><h3>Busca automática</h3><p>De onde o sistema tira imagem, sinopse e títulos de episódio — e o comando para varrer o catálogo.</p></header>
+          <div class="admin-grupo-corpo">
+            <article class="panel admin-tmdb-panel">
+          <div class="panel-heading"><div><h3>Fonte externa para filmes (TMDB)</h3><p class="muted">Quarta e última camada da busca, usada só quando o acervo da EBC e a Wikipédia não têm o título — que é onde estão os filmes licenciados. É uma base comunitária, então vale medir a cobertura no nosso catálogo antes de confiar.</p></div></div>
+          <div class="form-grid" style="grid-template-columns:minmax(240px,1fr);gap:12px;margin-top:12px">
+            <label>Chave da API<input id="tmdb-key" type="password" autocomplete="off" maxlength="200" placeholder="cole aqui a chave da API"><span class="helper">Gratuita em <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer">themoviedb.org</a>. Fica guardada junto com as outras preferências, no OneDrive — nunca no código publicado. Deixe em branco para não usar esta camada.</span></label>
+          </div>
+          <div class="button-row">
+            <button id="tmdb-test" class="button button-secondary" type="button"><span data-icon="search"></span> Medir cobertura no nosso catálogo</button>
+          </div>
+          <p id="tmdb-test-result" class="helper"></p>
+        </article>
+            <article class="panel admin-artwork-hunt">
+          <div class="panel-heading"><div><h3>Completar fichas que faltam</h3><p class="muted">Varre os programas com ficha incompleta e busca imagem, sinopse, títulos de episódio, classificação, categoria, tipo de obra e ano. Consulta nesta ordem: acervo do TV Brasil Play, sites da EBC e, por último, busca aberta. Roda em segundo plano — pode mudar de página e continuar trabalhando.</p></div></div>
+          <div id="artwork-hunt-status" class="artwork-hunt-status" hidden>
+            <div class="artwork-hunt-bar"><span id="artwork-hunt-fill"></span></div>
+            <p id="artwork-hunt-text" class="helper"></p>
+          </div>
+          <div class="button-row">
+            <button id="artwork-hunt-start" class="button button-primary" type="button"><span data-icon="search"></span> Completar fichas que faltam</button>
+            <button id="artwork-hunt-stop" class="button button-secondary" type="button" hidden>Parar</button>
+          </div>
+          <p class="helper">Nunca substitui o que já está preenchido — vale para imagem, sinopse e título de episódio igualmente. Se outra pessoa editar um programa no meio da varredura, o valor dela é respeitado. Uma correspondência só é aceita quando o título confere.</p>
+        </article>
+          </div>
+        </section>
+        <section class="admin-grupo admin-grupo-duplo">
+          <header class="admin-grupo-titulo"><h3>Aparência</h3><p>Preferências visuais. Nenhuma delas altera dados.</p></header>
+          <div class="admin-grupo-corpo">
+            <article class="panel admin-opacity-panel">
           <div class="panel-heading"><div><h3>Exibição e opacidade das imagens</h3><p class="muted">Ajuste a transparência das imagens de fundo automáticas nos cartões da grade e do catálogo.</p></div></div>
           <div class="form-grid" style="grid-template-columns:minmax(200px,1fr) auto;align-items:center;gap:16px;margin-top:12px">
             <label class="toggle"><input id="global-artwork-enabled" type="checkbox" checked> Exibir imagens de fundo dos programas<span class="helper">Desative para ocultar as imagens na grade e no catálogo sem apagar os arquivos.</span></label>
             <label>Intensidade das imagens de fundo: <strong id="global-opacity-label">14%</strong><input id="global-artwork-opacity" type="range" min="5" max="90" step="1" value="14"><span class="helper">Ajuste entre 5% e 90%. As imagens recebem contraste próprio em cada tema e não são impressas no PDF.</span></label>
           </div>
         </article>
-        <article class="panel admin-artwork-hunt" style="margin-top:20px">
-          <div class="panel-heading"><div><h3>Procurar imagens que faltam</h3><p class="muted">Varre os programas sem imagem e busca em três fontes, nesta ordem: acervo do TV Brasil Play, sites da EBC e, por último, busca aberta. Roda em segundo plano — pode continuar trabalhando normalmente.</p></div></div>
-          <div id="artwork-hunt-status" class="artwork-hunt-status" hidden>
-            <div class="artwork-hunt-bar"><span id="artwork-hunt-fill"></span></div>
-            <p id="artwork-hunt-text" class="helper"></p>
-          </div>
-          <div class="button-row">
-            <button id="artwork-hunt-start" class="button button-primary" type="button"><span data-icon="search"></span> Procurar imagens que faltam</button>
-            <button id="artwork-hunt-stop" class="button button-secondary" type="button" hidden>Parar</button>
-          </div>
-          <p class="helper">Nunca substitui imagem já escolhida. Uma correspondência só é aceita quando o título confere — imagem errada com cara de certa é pior do que nenhuma.</p>
-        </article>
-        <article class="panel admin-visual-panel" style="margin-top:20px">
+            <article class="panel admin-visual-panel">
           <div class="panel-heading"><div><h3>Aparência em teste</h3><p class="muted">Proposta de novo visual, avaliada em 18/08/2026. Muda só a aparência: todas as funções, dados e permissões continuam idênticas.</p></div></div>
           <div class="form-grid" style="grid-template-columns:minmax(240px,1fr);gap:12px;margin-top:12px">
             <label class="toggle"><input id="visual-proposta-toggle" type="checkbox"> Usar a proposta de novo visual<span class="helper">Vale só para o seu navegador — não altera o que as outras pessoas veem, nem o PDF. Pode desligar a qualquer momento e tudo volta na hora.</span></label>
           </div>
         </article>
-        <div class="cleanup-grid">
+          </div>
+        </section>
+        <section class="admin-grupo admin-grupo-perigo">
+          <header class="admin-grupo-titulo"><h3>Manutenção</h3><p>Ações que apagam dados. Não têm desfazer — confira o canal e a semana antes.</p></header>
+          <div class="admin-grupo-corpo">
+            <div class="cleanup-grid">
           <article class="danger-card warning"><span data-icon="calendar"></span><h3>Limpar esta semana</h3><p>Remove as ocorrências visíveis e cria exceções nas regras recorrentes.</p><strong id="cleanup-week-count">0 itens</strong><button data-cleanup="week" class="button button-warning" type="button">Revisar limpeza</button></article>
           <article class="danger-card"><span data-icon="tv"></span><h3>Limpar este canal</h3><p>Remove regras, ocorrências e catálogo exclusivo deste canal.</p><strong id="cleanup-channel-count">0 itens</strong><button data-cleanup="channel" class="button button-danger" type="button">Revisar limpeza</button></article>
           <article class="danger-card critical"><span data-icon="database"></span><h3>Limpeza global</h3><p>Remove dados operacionais de todos os canais, preservando auditoria e backups.</p><strong id="cleanup-global-count">0 itens</strong><button data-cleanup="global" class="button button-danger" type="button">Revisar limpeza</button></article>
         </div>
+          </div>
+        </section>
+        <section class="admin-grupo">
+          <header class="admin-grupo-titulo"><h3>Sobre</h3><p>Identificação desta instalação.</p></header>
+          <div class="admin-grupo-corpo">
+            <article class="panel release-panel">
+          <div><p class="eyebrow">Identificação do sistema</p><h3>Versão instalada</h3><p class="muted">Informe este número ao relatar uma dúvida, correção ou diferença entre computadores.</p></div>
+          <strong class="release-badge" data-app-version>Versão 6.9.0 · 26/08/2026</strong>
+        </article>
+          </div>
+        </section>
       </section>
     </main>
   </div>
@@ -222,15 +264,24 @@
     <header><div><p id="modal-kicker" class="eyebrow">Sistema de Grade</p><h2 id="modal-title">Janela</h2></div><button id="modal-close" class="icon-button" type="button" aria-label="Fechar"><span data-icon="close"></span></button></header>
     <div id="modal-body" class="modal-body"></div><footer id="modal-footer" class="modal-footer"></footer>
   </section>
+  <!-- Acompanha a varredura fora da página de administração: ela continua rodando quando se troca de página. -->
+  <div id="varredura-flutuante" class="varredura-flutuante" role="status" aria-live="polite" hidden>
+    <div class="varredura-flutuante-topo">
+      <span class="varredura-flutuante-ponto" aria-hidden="true"></span>
+      <strong>Completando fichas</strong>
+    </div>
+    <div class="varredura-flutuante-barra"><span id="varredura-flutuante-fill"></span></div>
+    <p id="varredura-flutuante-texto"></p>
+  </div>
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   <div id="print-root" aria-hidden="true"></div>
   <script src="assets/vendor/xlsx.full.min.js?v=0.20.3"></script>
-  <script src="assets/js/microsoft-graph.bundle.js?v=20260825-v680"></script>
-  <script src="assets/js/grade-core-v6.js?v=20260825-v680"></script>
+  <script src="assets/js/microsoft-graph.bundle.js?v=20260826-v690"></script>
+  <script src="assets/js/grade-core-v6.js?v=20260826-v690"></script>
   <script src="assets/js/graph-store-v6.js?v=20260812-sec3"></script>
-  <script src="assets/js/tvbrasil-program-artworks.js?v=20260825-v680"></script>
-  <script src="assets/js/tvbrasil-episode-titles.js?v=20260825-v680"></script>
-  <script src="assets/js/ebc-play-source.js?v=20260825-v680"></script>
-  <script src="assets/js/grade-app-v6.js?v=20260825-v680"></script>
+  <script src="assets/js/tvbrasil-program-artworks.js?v=20260826-v690"></script>
+  <script src="assets/js/tvbrasil-episode-titles.js?v=20260826-v690"></script>
+  <script src="assets/js/ebc-play-source.js?v=20260826-v690"></script>
+  <script src="assets/js/grade-app-v6.js?v=20260826-v690"></script>
 </body>
 </html>

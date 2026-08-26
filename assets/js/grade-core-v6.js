@@ -122,7 +122,7 @@
     {id:'color_rerun',name:'Reprise',match:'rerun',background:'#E0E0E0',text:'#252B35',accent:'#6F6F6E'}
   ];
   const defaultColorGroups = () => clone(DEFAULT_COLOR_GROUPS);
-  const defaultPreferences = () => ({programArtworkEnabled:true,programArtworkOpacity:14});
+  const defaultPreferences = () => ({programArtworkEnabled:true,programArtworkOpacity:14,tmdbApiKey:''});
   const emptyChannel = () => ({catalog:[],rules:[],occurrences:[],exceptions:[],skipRanges:[],updatedAt:null});
   const emptyState = () => ({
     schemaVersion:VERSION,globalCatalog:[],channels:Object.fromEntries(Object.keys(CHANNELS).map(id=>[id,emptyChannel()])),
@@ -468,6 +468,12 @@
     requireAdmin();assertSafeTree(changes,'Preferencias');const next={...defaultPreferences(),...(state.preferences||{})};
     if(Object.prototype.hasOwnProperty.call(changes,'programArtworkEnabled'))next.programArtworkEnabled=changes.programArtworkEnabled!==false;
     if(Object.prototype.hasOwnProperty.call(changes,'programArtworkOpacity'))next.programArtworkOpacity=Math.max(5,Math.min(90,+changes.programArtworkOpacity||14));
+    // Chave do TMDB: fica aqui, no OneDrive, e nunca no repositorio. Aceita so o
+    // formato de chave (hex ou token) para nao virar campo de texto livre.
+    if(Object.prototype.hasOwnProperty.call(changes,'tmdbApiKey')){
+      const bruta=String(changes.tmdbApiKey||'').trim();
+      next.tmdbApiKey=/^[A-Za-z0-9._-]{0,200}$/.test(bruta)?bruta:'';
+    }
     state.preferences=next;audit('Preferências de exibição atualizadas','Imagens '+(next.programArtworkEnabled?'ativadas':'desativadas')+' · opacidade '+next.programArtworkOpacity+'%','global');return clone(next);
   }
   function normalizeColor(value,fallback){const text=String(value||'').trim().toUpperCase();return /^#[0-9A-F]{6}$/.test(text)?text:fallback;}
@@ -550,6 +556,18 @@
     if(ex){ex.action=action;ex.changes=action==='change'?clone(changes):{};ex.date=anchor;ex.occurrenceKind=kind;return ex;}
     ex={id:uid('exception'),ruleId:item.ruleId,date:anchor,occurrenceKind:kind,action};if(action==='change')ex.changes=clone(changes);channel.exceptions.push(ex);return ex;
   }
+  // Reprise por dia da semana: cada dia marcado vira a PROXIMA data daquele dia
+  // depois da exibicao principal, dentro de sete dias. "Reprise no sabado" quer
+  // dizer o sabado seguinte, nao um sabado qualquer do calendario. Devolve tambem
+  // o deslocamento, que o gerador usa para decidir sobre os dias da regra.
+  function rerunWeekdayDates(primaryDate,weekdays){
+    const datas=[];
+    for(let passo=1;passo<=7;passo++){
+      const data=isoDate(addDays(primaryDate,passo));
+      if(weekdays.includes(weekdayOf(data)))datas.push({data,offset:passo});
+    }
+    return datas;
+  }
   function getOccurrences(channelId,from,to){
     requireChannelAccess(channelId);
     const channel=state.channels[channelId]||emptyChannel();const catalogMap=new Map(getCatalog().map(p=>[p.id,p]));const result=channel.occurrences.filter(o=>o.date>=from&&o.date<=to).map(clone);
@@ -568,13 +586,26 @@
         busy.add(date,basePrimary.start,basePrimary.duration);aired++;
         const primary=applyException(basePrimary,channel.exceptions);if(primary&&primary.date>=from&&primary.date<=to)result.push(primary);
         (rule.reruns||[]).forEach((rerun,rIndex)=>{
-          const offset=+rerun.dayOffset||0,rerunDate=isoDate(addDays(date,offset));if(skipped(channel,rerunDate))return;
-          // A reprise nunca cai num dia que a regra não contempla (era assim que a sexta virava sábado).
-          if(offset&&rerunsFollowWeekdays&&!(rule.weekdays||[]).includes(weekdayOf(rerunDate)))return;
-          const rerunStart=rerun.start||basePrimary.start;if(!busy.free(rerunDate,rerunStart,basePrimary.duration))return;
-          busy.add(rerunDate,rerunStart,basePrimary.duration);
-          let copy={...basePrimary,id:'gen_'+rule.id+'_'+date+'_rerun_'+rIndex,date:rerunDate,occurrenceDate:rerunDate,start:rerunStart,type:'rerun',category:'Reprise',isRerun:true,originalDate:date,occurrenceKind:'rerun'};
-          copy=applyException(copy,channel.exceptions);if(copy&&copy.date>=from&&copy.date<=to)result.push(copy);
+          // Dias marcados a mao mandam: quem escolheu "sábado e domingo" quer o sábado
+          // e o domingo seguintes, mesmo que a exibição principal não passe nesses dias.
+          // Sem dias marcados, vale o deslocamento de sempre — regra antiga não muda.
+          const escolhidos=(rerun.weekdays||[]).filter(Boolean);
+          const datas=escolhidos.length?rerunWeekdayDates(date,escolhidos)
+            :[{data:isoDate(addDays(date,+rerun.dayOffset||0)),offset:+rerun.dayOffset||0}];
+          datas.forEach((alvo,dIndex)=>{
+            const rerunDate=alvo.data,offset=alvo.offset;
+            if(skipped(channel,rerunDate))return;
+            // Sem dias marcados, a reprise nunca cai num dia que a regra não contempla
+            // (era assim que a sexta virava sábado).
+            if(!escolhidos.length&&offset&&rerunsFollowWeekdays&&!(rule.weekdays||[]).includes(weekdayOf(rerunDate)))return;
+            const rerunStart=rerun.start||basePrimary.start;if(!busy.free(rerunDate,rerunStart,basePrimary.duration))return;
+            busy.add(rerunDate,rerunStart,basePrimary.duration);
+            // O sufixo só aparece quando há vários dias: assim o id das regras antigas
+            // continua exatamente o mesmo de antes.
+            const marca='gen_'+rule.id+'_'+date+'_rerun_'+rIndex+(escolhidos.length?'_'+dIndex:'');
+            let copy={...basePrimary,id:marca,date:rerunDate,occurrenceDate:rerunDate,start:rerunStart,type:'rerun',category:'Reprise',isRerun:true,originalDate:date,occurrenceKind:'rerun'};
+            copy=applyException(copy,channel.exceptions);if(copy&&copy.date>=from&&copy.date<=to)result.push(copy);
+          });
         });
       });
     });

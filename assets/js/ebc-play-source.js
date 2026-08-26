@@ -179,20 +179,69 @@
   // por completo. Uma imagem errada com cara de certa e pior do que nenhuma imagem,
   // porque ninguem vai conferir. Por isso so aceitamos quando o titulo do ARTIGO bate
   // com o titulo do programa pelo mesmo criterio conservador das outras camadas.
-  const WIKIPEDIA = 'https://pt.wikipedia.org/w/api.php';
+  const WIKIPEDIA = 'https://pt.wikipedia.org/w/api.php'
+  // Quarta camada, opcional: so funciona com a chave cadastrada na Administracao.
+  // Cobre o que a EBC nao tem — filme licenciado e serie estrangeira.
+  const TMDB = 'https://api.themoviedb.org/3'
+  const TMDB_IMAGEM = 'https://image.tmdb.org/t/p/w780';
+  // Corta o resumo num fim de frase, para nao entregar sinopse truncada no meio.
+  function resumirTexto(texto, limite = 700) {
+    const limpo = String(texto || '').replace(/\s+/g, ' ').trim();
+    if (limpo.length <= limite) return limpo;
+    const corte = limpo.slice(0, limite);
+    const ponto = Math.max(corte.lastIndexOf('. '), corte.lastIndexOf('! '), corte.lastIndexOf('? '));
+    return (ponto > limite * 0.5 ? corte.slice(0, ponto + 1) : corte.trim() + '…');
+  }
+
+  // Uma consulta so traz os dois campos que a Wikipedia cobre bem: capa e resumo.
+  // A pagina entra mesmo sem imagem, porque a sinopse sozinha ja vale a viagem.
   async function procurarNaWikipedia(titulo) {
     const limpo = String(titulo || '').trim();
     if (limpo.length < 3) return null;
-    const url = WIKIPEDIA + '?action=query&format=json&origin=*&prop=pageimages&piprop=original'
+    const url = WIKIPEDIA + '?action=query&format=json&origin=*&prop=pageimages%7Cextracts&piprop=original'
+      + '&exintro=1&explaintext=1'
       + '&generator=search&gsrlimit=3&gsrsearch=' + encodeURIComponent(limpo);
     const dados = await pegarJson(url);
     const paginas = Object.values(dados?.query?.pages || {});
     for (const pagina of paginas) {
-      const imagem = String(pagina?.original?.source || '').trim();
-      if (!imagem || !/^https:\/\//i.test(imagem)) continue;
       const nivel = classificarCorrespondencia(limpo, pagina.title || '');
       // 'media' nao entra: e justamente onde moram os falsos positivos.
-      if (nivel === 'exata' || nivel === 'alta') return { url: imagem, titulo: pagina.title, confianca: nivel };
+      if (nivel !== 'exata' && nivel !== 'alta') continue;
+      const bruta = String(pagina?.original?.source || '').trim();
+      const imagem = /^https:\/\//i.test(bruta) ? bruta : '';
+      const sinopse = resumirTexto(pagina?.extract || '');
+      if (!imagem && !sinopse) continue;
+      return { url: imagem, sinopse, titulo: pagina.title, confianca: nivel };
+    }
+    return null;
+  }
+
+  // O TMDB e comunitario, entao a mesma desconfianca das outras camadas vale aqui:
+  // so aceita quando o titulo confere ('exata' ou 'alta'), nunca no 'media'.
+  async function procurarNoTmdb(titulo, chave) {
+    const limpo = String(titulo || '').trim();
+    if (limpo.length < 3 || !String(chave || '').trim()) return null;
+    const url = TMDB + '/search/multi?language=pt-BR&include_adult=false'
+      + '&api_key=' + encodeURIComponent(String(chave).trim())
+      + '&query=' + encodeURIComponent(limpo);
+    const dados = await pegarJson(url);
+    const achados = Array.isArray(dados && dados.results) ? dados.results : [];
+    for (const item of achados) {
+      if (!item || item.media_type === 'person') continue;
+      const nome = String(item.title || item.name || '').trim();
+      const nivel = classificarCorrespondencia(limpo, nome);
+      if (nivel !== 'exata' && nivel !== 'alta') continue;
+      const sinopse = resumirTexto(item.overview || '');
+      const cartaz = String(item.poster_path || '').trim();
+      const data = String(item.release_date || item.first_air_date || '').trim();
+      if (!sinopse && !cartaz) continue;
+      return {
+        url: cartaz ? TMDB_IMAGEM + cartaz : '',
+        sinopse,
+        ano: +data.slice(0, 4) || 0,
+        titulo: nome,
+        confianca: nivel
+      };
     }
     return null;
   }
@@ -206,22 +255,55 @@
     catch (erro) { if (!opcoes.tolerarFalhaDeRede) throw erro; }
     if (achado && opcoes.minimo === 'alta' && achado.confianca === 'media') achado = null;
     const semImagem = !String(programa?.artwork?.url || '').trim() && !String(programa?.artwork?.fileName || '').trim();
+    const semSinopse = !String(programa?.synopsis || '').trim();
+    // Cada camada aberta e consultada no maximo uma vez por sugestao, e so quando
+    // ainda falta alguma coisa. O TMDB fica por ultimo porque depende de chave.
+    let wikiCache, wikiPedida = false, tmdbCache, tmdbPedido = false;
+    const daWikipedia = async () => {
+      if (wikiPedida) return wikiCache;
+      wikiPedida = true;
+      try { wikiCache = await procurarNaWikipedia(programa?.title || ''); }
+      catch (_) { wikiCache = null; }
+      return wikiCache;
+    };
+    const doTmdb = async () => {
+      if (tmdbPedido) return tmdbCache;
+      tmdbPedido = true;
+      if (!opcoes.tmdb) { tmdbCache = null; return null; }
+      try { tmdbCache = await procurarNoTmdb(programa?.title || '', opcoes.tmdb); }
+      catch (_) { tmdbCache = null; }
+      return tmdbCache;
+    };
     if (!achado) {
-      if (!semImagem) return null;
-      // Sem correspondencia no Play: mapa da EBC e, por ultimo, a busca aberta.
-      let fonte = 'mapa_ebc', externa = procurarNoMapaEbc(programa?.title || '');
-      if (!externa && opcoes.buscaAberta !== false) {
-        fonte = 'wikipedia';
-        try { externa = await procurarNaWikipedia(programa?.title || ''); }
-        catch (_) { externa = null; }
+      if (!semImagem && !semSinopse) return null;
+      // Sem correspondencia no Play: mapa da EBC (so capa) e, por ultimo, a Wikipedia
+      // (capa e resumo). A busca aberta so entra se ainda faltar alguma coisa.
+      const doMapa = semImagem ? procurarNoMapaEbc(programa?.title || '') : null;
+      let daWeb = null, doFilme = null;
+      if (opcoes.buscaAberta !== false && ((semImagem && !doMapa) || semSinopse)) {
+        daWeb = await daWikipedia();
+        const faltaCapa = semImagem && !doMapa && !(daWeb && daWeb.url);
+        const faltaSinopse = semSinopse && !(daWeb && daWeb.sinopse);
+        if (faltaCapa || faltaSinopse) doFilme = await doTmdb();
       }
+      const externa = doMapa || daWeb || doFilme;
       if (!externa) return null;
+      const campos = {}, tocados = [];
+      if (semImagem && doMapa) { campos.artwork = { url: doMapa.url, source: 'ebc_site' }; tocados.push('imagem'); }
+      else if (semImagem && daWeb && daWeb.url) { campos.artwork = { url: daWeb.url, source: 'web' }; tocados.push('imagem'); }
+      else if (semImagem && doFilme && doFilme.url) { campos.artwork = { url: doFilme.url, source: 'tmdb' }; tocados.push('imagem'); }
+      const resumo = (daWeb && daWeb.sinopse) || (doFilme && doFilme.sinopse) || '';
+      if (semSinopse && resumo) { campos.synopsis = resumo; tocados.push('sinopse'); }
+      if (!(+programa?.productionYear) && doFilme && doFilme.ano) { campos.productionYear = doFilme.ano; tocados.push('ano'); }
+      if (!tocados.length) return null;
+      const fonte = campos.artwork && campos.artwork.source === 'ebc_site' ? 'mapa_ebc'
+        : (daWeb ? 'wikipedia' : 'tmdb');
       return {
         programId: programa?.id || '', title: programa?.title || '',
         confianca: externa.confianca, fonte,
         correspondente: { titulo: externa.titulo },
-        campos: { artwork: { url: externa.url, source: fonte === 'wikipedia' ? 'web' : 'ebc_site' } },
-        tocados: ['imagem']
+        campos,
+        tocados
       };
     }
     const conteudo = achado.conteudo, campos = {}, tocados = [];
@@ -234,8 +316,10 @@
       let capa = conteudo.capa;
       if (!capa) { const daEbc = procurarNoMapaEbc(programa?.title || ''); if (daEbc) { capa = daEbc.url; fonteDaCapa = 'ebc_site'; } }
       if (!capa && opcoes.buscaAberta !== false) {
-        try { const daWeb = await procurarNaWikipedia(programa?.title || ''); if (daWeb) { capa = daWeb.url; fonteDaCapa = 'web'; } }
-        catch (_) { /* sem busca aberta agora; as outras fontes ja falharam */ }
+        // A pagina pode ter resumo e nao ter imagem: so conta como capa se vier url.
+        const daWeb = await daWikipedia();
+        if (daWeb && daWeb.url) { capa = daWeb.url; fonteDaCapa = 'web'; }
+        if (!capa) { const doFilme = await doTmdb(); if (doFilme && doFilme.url) { capa = doFilme.url; fonteDaCapa = 'tmdb'; } }
       }
       if (capa) { campos.artwork = { url: capa, source: fonteDaCapa }; tocados.push('imagem'); }
     }
@@ -245,6 +329,13 @@
     }
     if (vazio(programa?.category) && conteudo.genero) { campos.category = conteudo.genero; tocados.push('categoria'); }
     if (vazio(programa?.synopsis) && conteudo.sinopse) { campos.synopsis = conteudo.sinopse; tocados.push('sinopse'); }
+    // O acervo nem sempre tem sinopse — filme licenciado quase nunca tem pagina na EBC.
+    if (vazio(programa?.synopsis) && !campos.synopsis && opcoes.buscaAberta !== false) {
+      const daWeb = await daWikipedia();
+      let resumo = daWeb && daWeb.sinopse;
+      if (!resumo) { const doFilme = await doTmdb(); resumo = doFilme && doFilme.sinopse; }
+      if (resumo) { campos.synopsis = resumo; tocados.push('sinopse'); }
+    }
     if (!+programa?.productionYear && conteudo.ano) { campos.productionYear = conteudo.ano; tocados.push('ano de produção'); }
 
     // O acervo sabe o formato da obra: Unitário, Série, Mini-série, Programa.
@@ -317,7 +408,7 @@
   }
 
   window.EBCPlay = {
-    catalogo, procurarPrograma, temporadasDe, sugerirPara, sugerirEpisodios,
+    catalogo, procurarPrograma, temporadasDe, sugerirPara, sugerirEpisodios, procurarNoTmdb,
     // expostos para teste
     _normalizar: normalizar, _similaridade: similaridade, _classificar: classificarCorrespondencia,
     _normalizarConteudo: normalizarConteudo, _traduzirClassificacao: traduzirClassificacao, _melhor: melhorCorrespondencia

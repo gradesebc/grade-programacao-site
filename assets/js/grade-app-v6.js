@@ -7,6 +7,15 @@
   'use strict';
   const C=()=>window.EBCGrade,G=()=>window.EBCGraphStore,$=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
   const esc=value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  // O MSAL troca o título da aba por "Microsoft Authentication" antes de sair para o
+  // login e nem sempre devolve o original: voltar pelo cache do navegador (bfcache)
+  // deixa o título trocado. Este script carrega depois do bundle do MSAL e antes de
+  // qualquer login, então aqui o título ainda é o do HTML — dá para guardá-lo e
+  // reafirmá-lo toda vez que a página reaparece.
+  const TITULO_DA_ABA=document.title;
+  function devolverTituloDaAba(){if(document.title!==TITULO_DA_ABA)document.title=TITULO_DA_ABA;}
+  window.addEventListener('pageshow',devolverTituloDaAba);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)devolverTituloDaAba();});
   const icons={
     microsoft:'<rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/>',
     calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',library:'<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',transfer:'<path d="m17 3 4 4-4 4M3 7h18M7 21l-4-4 4-4M21 17H3"/>',alert:'<path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',history:'<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',settings:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z"/>',
@@ -122,7 +131,7 @@
       for(let i=0;i<programas.length;i++){
         const programa=programas[i];
         try{
-          const sugestao=await window.EBCPlay.sugerirPara(programa,{catalogo:acervo,minimo:'alta'});
+          const sugestao=await window.EBCPlay.sugerirPara(programa,{catalogo:acervo,minimo:'alta',tmdb:chaveTmdb()});
           if(!sugestao){semCorrespondencia++;}
           else if(Object.keys(sugestao.campos).length){C().saveProgram({...programa,...sugestao.campos},programa.scope);aplicados++;}
           // Episódios custam uma requisição cada. Vale a pena quando falta título ou quando a
@@ -151,8 +160,9 @@
       enriquecendo=false;if(botao){botao.disabled=false;botao.textContent=botao.dataset.rotulo||'Buscar imagens e episódios';}
     }
   }
-  function openModal({title,kicker='Sistema de Grade',body='',footer='',wide=false}){modalReturnFocus=document.activeElement;$('#app-shell').setAttribute('inert','');$('#modal-title').textContent=title;$('#modal-kicker').textContent=kicker;$('#modal-body').innerHTML=body;$('#modal-footer').innerHTML=footer;$('#app-modal').style.width=wide?'min(920px,calc(100% - 32px))':'';$('#app-modal').classList.remove('hidden');$('#modal-backdrop').classList.remove('hidden');renderIcons($('#app-modal'));setTimeout(()=>$('#app-modal input, #app-modal select, #modal-close')?.focus(),20);}
-  function closeModal(){$('#app-modal').classList.add('hidden');$('#modal-backdrop').classList.add('hidden');$('#modal-body').innerHTML='';$('#modal-footer').innerHTML='';if(!$('#app-shell').classList.contains('hidden'))$('#app-shell').removeAttribute('inert');modalReturnFocus?.focus?.();modalReturnFocus=null;}
+  let classeExtraDaModal='';
+  function openModal({title,kicker='Sistema de Grade',body='',footer='',wide=false,classe='',largura=''}){modalReturnFocus=document.activeElement;$('#app-shell').setAttribute('inert','');$('#modal-title').textContent=title;$('#modal-kicker').textContent=kicker;$('#modal-body').innerHTML=body;$('#modal-footer').innerHTML=footer;if(classeExtraDaModal)$('#app-modal').classList.remove(classeExtraDaModal);classeExtraDaModal=classe||'';if(classeExtraDaModal)$('#app-modal').classList.add(classeExtraDaModal);$('#app-modal').style.width=largura||(wide?'min(920px,calc(100% - 32px))':'');$('#app-modal').classList.remove('hidden');$('#modal-backdrop').classList.remove('hidden');renderIcons($('#app-modal'));setTimeout(()=>$('#app-modal input, #app-modal select, #modal-close')?.focus(),20);}
+  function closeModal(){if(classeExtraDaModal){$('#app-modal').classList.remove(classeExtraDaModal);classeExtraDaModal='';}$('#app-modal').classList.add('hidden');$('#modal-backdrop').classList.add('hidden');$('#modal-body').innerHTML='';$('#modal-footer').innerHTML='';if(!$('#app-shell').classList.contains('hidden'))$('#app-shell').removeAttribute('inert');modalReturnFocus?.focus?.();modalReturnFocus=null;}
   function trapModalFocus(event){
     if(event.key!=='Tab'||$('#app-modal').classList.contains('hidden'))return;const focusable=$$('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])',$('#app-modal')).filter(el=>el.getClientRects().length);if(!focusable.length){event.preventDefault();return;}const first=focusable[0],last=focusable[focusable.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
   }
@@ -207,7 +217,7 @@
       painel.classList.add('hidden');$('#toggle-filters')?.setAttribute('aria-expanded','false');
     });$('#clear-filters').addEventListener('click',()=>{ui.filters.clear();ui.search='';ui.hideUnmatched=false;$('#grade-search').value='';$('#hide-unmatched').checked=false;renderFilters();applyCardFilters();});
     $('#grade-undo').addEventListener('click',undoGrade);$('#new-schedule').addEventListener('click',()=>openScheduleForm());$('#new-program').addEventListener('click',()=>openProgramForm());$('#color-groups').addEventListener('click',()=>openColorGroupsManager());$('#enrich-catalog')?.addEventListener('click',enriquecerCatalogo);
-    $('#catalog-search').addEventListener('input',renderCatalog);['catalog-scope','catalog-type','catalog-origin','catalog-content','catalog-rights','catalog-sort','catalog-category','catalog-subgroup','catalog-grouping'].forEach(id=>$('#'+id).addEventListener('change',renderCatalog));$('#clear-catalog-filters').addEventListener('click',clearCatalogFilters);$('#metrics-period').addEventListener('change',renderMetrics);
+    $('#catalog-search').addEventListener('input',renderCatalog);['catalog-scope','catalog-type','catalog-origin','catalog-content','catalog-rights','catalog-sort','catalog-category','catalog-subgroup','catalog-grouping'].forEach(id=>$('#'+id).addEventListener('change',renderCatalog));$('#clear-catalog-filters').addEventListener('click',clearCatalogFilters);$('#metrics-period').addEventListener('change',renderMetrics);$('#metrics-sort')?.addEventListener('change',renderMetrics);$('#metrics-search')?.addEventListener('input',renderMetrics);
     $('#catalog-select-visible').addEventListener('change',toggleVisibleCatalogSelection);$('#catalog-bulk-edit').addEventListener('click',openBulkProgramEditor);$('#catalog-clear-selection').addEventListener('click',()=>{ui.catalogSelected.clear();renderCatalog();});$$('[data-catalog-view]').forEach(button=>button.addEventListener('click',()=>setCatalogView(button.dataset.catalogView)));
     $('#import-file').addEventListener('change',event=>{$('#import-file-name').textContent=event.target.files[0]?.name||'Nenhum arquivo selecionado';ui.importData=null;$('#confirm-import').disabled=true;});
     $('#analyze-import').addEventListener('click',analyzeImport);$('#confirm-import').addEventListener('click',confirmImport);$('#undo-import').addEventListener('click',undoImport);
@@ -501,9 +511,17 @@
       '<div class="inline-fields"><label class="field">Data inicial<input id="schedule-date" type="date" value="'+today+'"></label><label class="field">Horário<input id="schedule-time" type="time" step="900" value="'+timeVal+'"></label><label class="field">Duração (min)<input id="schedule-duration" type="number" min="1" value="30"></label></div>'+
       '<fieldset id="season-fields" class="form-section hidden"><legend>Temporadas e ponto de partida</legend><div id="schedule-season-list" class="check-grid"></div><label class="field">Começar em<select id="schedule-start-episode-id"></select><span class="helper">A sequência segue a partir daí e volta ao início ao terminar.</span></label></fieldset>'+
       '<fieldset id="recurrence-fields" class="form-section"><legend>Dias de exibição principal</legend><div class="check-grid">'+C().DAYS.map(d=>'<label class="check-option"><input name="weekdays" type="checkbox" value="'+d+'" '+(d===weekday?'checked':'')+'>'+d+'</label>').join('')+'</div><div class="form-grid"><label>Encerramento<select id="schedule-end-mode"><option value="none">Sem término</option><option value="date">Em uma data</option><option value="cycles">Após ciclos completos</option></select></label><label>Data final<input id="schedule-end-date" type="date"></label><label>Ciclos da sequência<input id="schedule-cycles" type="number" min="1" value="1"></label><label>Episódio inicial<input id="schedule-start-episode" type="number" min="1" value="1"></label></div></fieldset>'+
-      '<fieldset class="form-section"><legend>Formato da exibição</legend><div class="form-grid"><label>Tipo<select id="schedule-type"><option value="live">Ao vivo</option><option value="recorded" selected>Gravado</option><option value="mixed">Misto</option><option value="unspecified">Sem definição</option></select></label><label>Origem<select id="schedule-origin"><option value="own">Produção própria</option><option value="independent">Produção independente</option><option value="licensed" selected>Licenciado</option><option value="news">Jornalismo</option><option value="institutional">Institucional</option></select></label></div><label class="toggle"><input id="schedule-rerun" type="checkbox"> Criar uma reprise vinculada</label><div id="rerun-fields" class="hidden"><div class="inline-fields"><label class="field">Horário da reprise<input id="rerun-time" type="time" step="900" value="20:00"></label><label class="field">Quando<select id="rerun-offset"><option value="0">No mesmo dia</option><option value="1">No dia seguinte</option></select></label></div><label class="toggle"><input id="rerun-any-day" type="checkbox"> Permitir a reprise fora dos dias escolhidos<span class="helper">Desligado, a reprise de sexta não cai no sábado: ela é dispensada.</span></label></div></fieldset>',
+      '<fieldset class="form-section"><legend>Formato da exibição</legend><div class="form-grid"><label>Tipo<select id="schedule-type"><option value="live">Ao vivo</option><option value="recorded" selected>Gravado</option><option value="mixed">Misto</option><option value="unspecified">Sem definição</option></select></label><label>Origem<select id="schedule-origin"><option value="own">Produção própria</option><option value="independent">Produção independente</option><option value="licensed" selected>Licenciado</option><option value="news">Jornalismo</option><option value="institutional">Institucional</option></select></label></div><label class="toggle"><input id="schedule-rerun" type="checkbox"> Criar uma reprise vinculada</label><div id="rerun-fields" class="hidden"><div class="inline-fields"><label class="field">Horário da reprise<input id="rerun-time" type="time" step="900" value="20:00"></label><label class="field">Quando<select id="rerun-mode"><option value="0">No mesmo dia</option><option value="1">No dia seguinte</option><option value="days">Em dias da semana escolhidos</option></select></label></div><fieldset id="rerun-weekday-fields" class="form-section hidden"><legend>Dias da reprise</legend><div class="check-grid">' + C().DAYS.map(d => '<label class="check-option"><input name="rerun-weekdays" type="checkbox" value="' + d + '">' + d + '</label>').join('') + '</div><span class="helper">Cada dia marcado vira uma reprise na próxima ocorrência daquele dia depois da exibição principal. Pode marcar mais de um — sábado e domingo, por exemplo.</span></fieldset><label class="toggle" id="rerun-any-day-wrap"><input id="rerun-any-day" type="checkbox"> Permitir a reprise fora dos dias escolhidos<span class="helper">Desligado, a reprise de sexta não cai no sábado: ela é dispensada. Não vale quando você escolhe os dias da reprise — aí os dias marcados mandam.</span></label></div></fieldset>',
       footer:'<button class="button button-secondary" data-modal-cancel type="button">Cancelar</button><button id="save-schedule" class="button button-primary" type="button">Salvar programação</button>'});
     $('[data-modal-cancel]').addEventListener('click',closeModal);$('#schedule-mode').addEventListener('change',e=>$('#recurrence-fields').classList.toggle('hidden',e.target.value==='manual'));$('#schedule-rerun').addEventListener('change',e=>$('#rerun-fields').classList.toggle('hidden',!e.target.checked));
+    // Com dias escolhidos a mão, "permitir fora dos dias" perde o sentido: some da tela
+    // em vez de ficar lá sugerindo que ainda faz alguma coisa.
+    const ajustarModoDeReprise=()=>{
+      const porDias=$('#rerun-mode')?.value==='days';
+      $('#rerun-weekday-fields')?.classList.toggle('hidden',!porDias);
+      $('#rerun-any-day-wrap')?.classList.toggle('hidden',porDias);
+    };
+    $('#rerun-mode')?.addEventListener('change',ajustarModoDeReprise);ajustarModoDeReprise();
     const selectedScheduleSeasons=()=>$$('input[name="schedule-season"]:checked',$('#app-modal')).map(input=>input.value);
     const refreshStartEpisodes=()=>{
       const program=C().getCatalog().find(x=>x.id===$('#schedule-program').value),select=$('#schedule-start-episode-id');if(!select)return;
@@ -537,7 +555,12 @@
         const duracaoPropria=+chosen?.duration&&+chosen.duration!==+program.defaultDuration?Math.min(1440,+chosen.duration):0;
         C().saveOccurrence({...base,date:base.startsAt,duration:duracaoPropria||base.duration,season:chosen?.season||'',episodeId:chosen?.id||'',episodeTitle:chosen?.title||'',episodeNumber:episodeMode==='continuous'?base.startEpisode:(chosen?.number||'')});
       }
-      else{const weekdays=$$('input[name="weekdays"]:checked',$('#app-modal')).map(i=>i.value);const endMode=$('#schedule-end-mode').value,reruns=$('#schedule-rerun').checked?[{start:$('#rerun-time').value,dayOffset:+$('#rerun-offset').value}]:[];C().saveRule({...base,id:C().uid('rule'),weekdays,endMode,endsAt:endMode==='date'?$('#schedule-end-date').value:'',cycles:endMode==='cycles'?+$('#schedule-cycles').value||1:1,continuous:episodeMode==='continuous',rerunsAnyDay:!!$('#rerun-any-day')?.checked,reruns,active:true});}
+      else{const weekdays=$$('input[name="weekdays"]:checked',$('#app-modal')).map(i=>i.value);const endMode=$('#schedule-end-mode').value;
+      const modoReprise=$('#rerun-mode')?.value||'0',diasDaReprise=$('input[name="rerun-weekdays"]:checked',$('#app-modal')).map(i=>i.value);
+      if($('#schedule-rerun').checked&&modoReprise==='days'&&!diasDaReprise.length)throw new Error('Escolha pelo menos um dia para a reprise.');
+      const reruns=$('#schedule-rerun').checked?[modoReprise==='days'
+        ?{start:$('#rerun-time').value,weekdays:diasDaReprise}
+        :{start:$('#rerun-time').value,dayOffset:+modoReprise||0}]:[];C().saveRule({...base,id:C().uid('rule'),weekdays,endMode,endsAt:endMode==='date'?$('#schedule-end-date').value:'',cycles:endMode==='cycles'?+$('#schedule-cycles').value||1:1,continuous:episodeMode==='continuous',rerunsAnyDay:!!$('#rerun-any-day')?.checked,reruns,active:true});}
       closeModal();renderAll();toast('Programação salva com sucesso.','success');
     }catch(err){toast(err.message,'error');}
   }
@@ -624,8 +647,45 @@
     let items=[];try{items=C().getOccurrences(C().session.channel,from,to);}catch(err){list.innerHTML='<div class="empty-state compact"><p>Não foi possível calcular as métricas agora.</p></div>';return;}
     const grouped=new Map();items.forEach(item=>{const key=item.programId||'title_'+C().normalize(item.title);const row=grouped.get(key)||{title:item.title||'Programa sem título',count:0,minutes:0,primary:0,reruns:0,dates:new Set()};row.count++;row.minutes+=Math.max(0,+item.duration||0);row.primary+=item.isRerun?0:1;row.reruns+=item.isRerun?1:0;row.dates.add(item.date);grouped.set(key,row);});
     const rows=[...grouped.values()].sort((a,b)=>b.minutes-a.minutes||b.count-a.count||a.title.localeCompare(b.title,'pt-BR')),totalMinutes=rows.reduce((sum,row)=>sum+row.minutes,0),formatDuration=minutes=>{const h=Math.floor(minutes/60),m=minutes%60;return h?(h+'h '+(m?m+'min':'')):m+'min';};
-    summary.innerHTML='<div class="metric"><span>Programas exibidos</span><strong>'+rows.length+'</strong></div><div class="metric"><span>Exibições</span><strong>'+items.length+'</strong></div><div class="metric"><span>Tempo ocupado</span><strong>'+esc(formatDuration(totalMinutes))+'</strong></div><div class="metric"><span>Reprises</span><strong>'+items.filter(item=>item.isRerun).length+'</strong></div>';
-    list.innerHTML=rows.length?rows.map(row=>'<article class="metrics-row"><div class="metrics-program"><strong>'+esc(row.title)+'</strong><span>'+row.dates.size+' dia(s) no período</span></div><div class="metrics-value"><span>Exibições</span><strong>'+row.count+'</strong></div><div class="metrics-value"><span>Tempo</span><strong>'+esc(formatDuration(row.minutes))+'</strong></div><div class="metrics-value"><span>Principais / reprises</span><strong>'+row.primary+' / '+row.reruns+'</strong></div></article>').join(''):'<div class="empty-state compact"><p>Nenhuma exibição encontrada neste período.</p></div>';
+    summary.innerHTML='<div class="metric"><span>Programas exibidos</span><strong>'+rows.length+'</strong></div>'
+      +'<div class="metric"><span>Exibições</span><strong>'+items.length+'</strong></div>'
+      +'<div class="metric"><span>Tempo ocupado</span><strong>'+esc(formatDuration(totalMinutes))+'</strong></div>'
+      +'<div class="metric"><span>Reprises</span><strong>'+items.filter(item=>item.isRerun).length+'</strong></div>';
+
+    // Com 199 programas, ver a lista inteira ordenada por tempo não ajuda a achar um
+    // programa específico. Daí a busca e a ordenação escolhida.
+    const busca=C().normalize($('#metrics-search')?.value||''),ordem=$('#metrics-sort')?.value||'minutes';
+    const visiveis=busca?rows.filter(row=>C().normalize(row.title).includes(busca)):rows;
+    const porOrdem={
+      minutes:(a,b)=>b.minutes-a.minutes||b.count-a.count,
+      count:(a,b)=>b.count-a.count||b.minutes-a.minutes,
+      reruns:(a,b)=>b.reruns-a.reruns||b.minutes-a.minutes,
+      title:(a,b)=>a.title.localeCompare(b.title,'pt-BR')
+    };
+    visiveis.sort(porOrdem[ordem]||porOrdem.minutes);
+
+    const contador=$('#metrics-count');
+    if(contador)contador.textContent=busca
+      ?visiveis.length+' de '+rows.length+' programa(s)'
+      :rows.length+' programa(s) no período';
+    const cabecalho=$('.metrica-cabecalho');
+    if(cabecalho)cabecalho.hidden=!visiveis.length;
+
+    // A barra compara com o programa que mais ocupou a grade, não com o total: contra o
+    // total, uma lista longa vira um punhado de tracinhos indistinguíveis.
+    const maior=visiveis.reduce((maximo,row)=>Math.max(maximo,row.minutes),0);
+    list.innerHTML=visiveis.length?visiveis.map(row=>{
+      const fatia=maior?Math.round(row.minutes/maior*100):0;
+      const parte=totalMinutes?Math.round(row.minutes/totalMinutes*100):0;
+      return '<article class="metrica-linha" title="'+esc(row.title)+' — '+parte+'% do tempo do período">'
+        +'<span class="metrica-nome">'+esc(row.title)+'</span>'
+        +'<span class="metrica-fatia" aria-hidden="true"><span style="width:'+Math.max(fatia,2)+'%"></span></span>'
+        +'<span class="metrica-dado"><b>'+row.count+'</b></span>'
+        +'<span class="metrica-dado"><b>'+esc(formatDuration(row.minutes))+'</b></span>'
+        +'<span class="metrica-dado metrica-partido"><b>'+row.primary+'</b><i>/</i><b>'+row.reruns+'</b></span>'
+        +'<span class="metrica-dado metrica-dias">'+row.dates.size+'</span>'
+        +'</article>';
+    }).join(''):'<div class="empty-state compact"><p>'+(busca?'Nenhum programa corresponde à busca.':'Nenhuma exibição encontrada neste período.')+'</p></div>';
   }
   function renderCatalog(){
     if(!C().session.channel)return;const scope=$('#catalog-scope').value||'all',all=C().getCatalog(scope);updateCatalogSelect('catalog-category',catalogKnownValues(all,'category'),'Todas as categorias');updateCatalogSelect('catalog-subgroup',catalogKnownValues(all,'subgroups'),'Todos os subgrupos');
@@ -672,42 +732,158 @@
   // Varredura das imagens que faltam, disparada na Administração. Roda em segundo
   // plano de verdade: cede o processador entre cada programa, então a pessoa continua
   // navegando, editando e salvando enquanto isso acontece.
-  let cacaDeImagens={rodando:false,parar:false};
-  async function procurarImagensQueFaltam(){
-    if(cacaDeImagens.rodando)return;
-    if(!window.EBCPlay){toast('O módulo de consulta ao acervo não foi carregado.','error');return;}
-    const botao=$('#artwork-hunt-start'),parar=$('#artwork-hunt-stop'),caixa=$('#artwork-hunt-status'),
-          barra=$('#artwork-hunt-fill'),texto=$('#artwork-hunt-text');
-    const semImagem=C().getCatalog().filter(p=>(p.scope==='channel'||C().isAdmin())&&!p.artwork?.flagged&&!String(p.artwork?.url||'').trim()&&!String(p.artwork?.fileName||'').trim());
-    if(!semImagem.length){toast('Todos os programas já têm imagem.','success');return;}
-    cacaDeImagens={rodando:true,parar:false};
-    botao.disabled=true;parar.hidden=false;caixa.hidden=false;
-    let achadas=0,semFonte=0,falhas=0;
-    const porFonte={ebc_play:0,ebc_site:0,web:0};
-    for(let i=0;i<semImagem.length;i++){
-      if(cacaDeImagens.parar)break;
-      const programa=semImagem[i];
+  // A chave do TMDB mora nas preferencias compartilhadas (OneDrive), nunca no
+  // repositorio. Sem ela, a quarta camada simplesmente nao entra.
+  const chaveTmdb=()=>{try{return String(C().getPreferences().tmdbApiKey||'').trim();}catch(_){return '';}};
+  // Mede a cobertura real do TMDB no catálogo desta casa, em vez de confiar na fama
+  // da base. Amostra só quem hoje está sem sinopse, que é o problema a resolver.
+  async function medirCoberturaTmdb(){
+    const saida=$('#tmdb-test-result'),botao=$('#tmdb-test');
+    const chave=($('#tmdb-key')?.value||'').trim()||chaveTmdb();
+    if(!chave){saida.textContent='Cadastre a chave antes de medir.';return;}
+    if(!window.EBCPlay){saida.textContent='O módulo de consulta ao acervo não foi carregado.';return;}
+    const alvos=C().getCatalog().filter(p=>!String(p.synopsis||'').trim()).slice(0,25);
+    if(!alvos.length){saida.textContent='Nenhum programa sem sinopse para testar.';return;}
+    botao.disabled=true;
+    let achados=0,comSinopse=0,falhas=0;
+    for(let i=0;i<alvos.length;i++){
+      saida.textContent='Medindo… '+(i+1)+' de '+alvos.length+'.';
       try{
-        const sugestao=await window.EBCPlay.sugerirPara(programa,{minimo:'alta'});
-        if(sugestao?.campos?.artwork){
-          // Relê do catálogo: o programa pode ter sido editado enquanto a varredura corria.
-          const atual=C().getCatalog().find(p=>p.id===programa.id);
-          if(atual&&!String(atual.artwork?.url||'').trim()){
-            C().saveProgram({...atual,artwork:sugestao.campos.artwork},atual.scope);
-            achadas++;porFonte[sugestao.fonte]=(porFonte[sugestao.fonte]||0)+1;
-          }
-        }else semFonte++;
+        const achado=await window.EBCPlay.procurarNoTmdb(alvos[i].title,chave);
+        if(achado){achados++;if(achado.sinopse)comSinopse++;}
       }catch(_){falhas++;}
-      const feito=i+1,pct=Math.round(feito/semImagem.length*100);
-      barra.style.width=pct+'%';
-      texto.textContent=pct+'% · '+feito+' de '+semImagem.length+' · '+achadas+' imagem(ns) encontrada(s)';
+      await new Promise(r=>setTimeout(r,140)); // respeita o limite de chamadas do TMDB
+    }
+    botao.disabled=false;
+    const pct=Math.round(comSinopse/alvos.length*100);
+    saida.textContent='Amostra de '+alvos.length+' programas sem sinopse: '+achados+' encontrados no TMDB, '
+      +comSinopse+' com sinopse em português'+(falhas?' · '+falhas+' falha(s) de consulta':'')
+      +'. Aproveitamento de '+pct+'%'+(pct<30?' — baixo para este acervo.':pct<60?' — parcial.':' — bom.');
+  }
+  // ===== Varredura de fichas incompletas =====
+  // A regra da imagem virou a regra de todos os campos: preenche só o que está em
+  // branco e nunca substitui o que alguém digitou. Antes de gravar, relê o programa
+  // do catálogo — outra pessoa pode tê-lo editado enquanto a varredura corria.
+  const CAMPOS_DA_FICHA=[
+    {chave:'artwork',rotulo:'imagem',falta:p=>!p.artwork?.flagged&&!String(p.artwork?.url||'').trim()&&!String(p.artwork?.fileName||'').trim()},
+    {chave:'synopsis',rotulo:'sinopse',falta:p=>!String(p.synopsis||'').trim()},
+    {chave:'contentFormat',rotulo:'tipo de obra',falta:p=>!String(p.contentFormat||'').trim()},
+    {chave:'cl',rotulo:'classificação',falta:p=>!String(p.cl||'').trim()},
+    {chave:'category',rotulo:'categoria',falta:p=>!String(p.category||'').trim()},
+    {chave:'productionYear',rotulo:'ano',falta:p=>!(+p.productionYear)}
+  ];
+  const episodiosSemTitulo=p=>(p.seasons||[]).reduce((n,t)=>n+(t.episodes||[]).filter(e=>!String(e.title||'').trim()).length,0);
+  const fichaIncompleta=p=>CAMPOS_DA_FICHA.some(c=>c.falta(p))||episodiosSemTitulo(p)>0;
+  const CHAVE_VARREDURA='ebc_varredura_pendente';
+  let varredura={rodando:false,parar:false,feitos:0,total:0,achados:{},pendentes:[]};
+
+  function guardarVarredura(){
+    try{
+      if(varredura.rodando&&varredura.pendentes.length)
+        localStorage.setItem(CHAVE_VARREDURA,JSON.stringify({pendentes:varredura.pendentes,total:varredura.total,feitos:varredura.feitos,canal:C().session.channel}));
+      else localStorage.removeItem(CHAVE_VARREDURA);
+    }catch(_){/* cota cheia: a varredura segue, só não dá para retomar depois */}
+  }
+  function varreduraPendente(){
+    try{
+      const bruto=localStorage.getItem(CHAVE_VARREDURA);if(!bruto)return null;
+      const dados=JSON.parse(bruto);
+      return dados&&dados.pendentes&&dados.pendentes.length&&dados.canal===C().session.channel?dados:null;
+    }catch(_){return null;}
+  }
+  function resumoDaVarredura(){
+    return Object.entries(varredura.achados).filter(([chave])=>chave!=='falha')
+      .map(([chave,quantas])=>quantas+' '+chave+(quantas>1?'s':'')).join(' · ');
+  }
+  function pintarVarredura(mensagem){
+    const pct=varredura.total?Math.round(varredura.feitos/varredura.total*100):0;
+    const resumo=resumoDaVarredura();
+    const linha=mensagem||(pct+'% · '+varredura.feitos+' de '+varredura.total+(resumo?' · '+resumo:''));
+    const caixa=$('#artwork-hunt-status');if(caixa)caixa.hidden=false;
+    const barra=$('#artwork-hunt-fill');if(barra)barra.style.width=pct+'%';
+    const texto=$('#artwork-hunt-text');if(texto)texto.textContent=linha;
+    const botao=$('#artwork-hunt-start');if(botao)botao.disabled=varredura.rodando;
+    const parar=$('#artwork-hunt-stop');if(parar)parar.hidden=!varredura.rodando;
+    // O aviso flutuante existe porque a varredura continua rodando quando a pessoa
+    // sai da administração: sem ele, o progresso sumiria de vista.
+    const flutuante=$('#varredura-flutuante');
+    if(flutuante){
+      flutuante.hidden=!varredura.rodando;
+      const t=$('#varredura-flutuante-texto');if(t)t.textContent=linha;
+      const f=$('#varredura-flutuante-fill');if(f)f.style.width=pct+'%';
+    }
+  }
+  function avisarSaidaDaVarredura(evento){
+    if(!varredura.rodando)return;
+    evento.preventDefault();evento.returnValue='';
+  }
+  async function completarFichaDe(programa){
+    let sugestao=null;
+    try{sugestao=await window.EBCPlay.sugerirPara(programa,{minimo:'alta',tmdb:chaveTmdb()});}
+    catch(_){varredura.achados.falha=(varredura.achados.falha||0)+1;return;}
+    const campos=(sugestao&&sugestao.campos)||{};
+    // Segunda releitura, agora na hora de gravar: entre a consulta e o salvamento
+    // dá tempo de alguém ter digitado o campo à mão.
+    const atual=C().getCatalog().find(p=>p.id===programa.id);
+    if(!atual)return;
+    const mudou={};
+    CAMPOS_DA_FICHA.forEach(campo=>{
+      if(campos[campo.chave]===undefined)return;
+      if(!campo.falta(atual))return;
+      mudou[campo.chave]=campos[campo.chave];
+      varredura.achados[campo.rotulo]=(varredura.achados[campo.rotulo]||0)+1;
+    });
+    if(episodiosSemTitulo(atual)){
+      try{
+        const vindos=await window.EBCPlay.sugerirEpisodios(atual,{minimo:'alta'});
+        if(vindos&&vindos.preenchidos){
+          mudou.seasons=vindos.seasons;
+          varredura.achados['título de episódio']=(varredura.achados['título de episódio']||0)+vindos.preenchidos;
+        }
+      }catch(_){varredura.achados.falha=(varredura.achados.falha||0)+1;}
+    }
+    if(Object.keys(mudou).length)C().saveProgram({...atual,...mudou},atual.scope);
+  }
+  async function varrerFichasIncompletas(){
+    if(varredura.rodando)return;
+    if(!window.EBCPlay){toast('O módulo de consulta ao acervo não foi carregado.','error');return;}
+    const pendente=varreduraPendente();
+    const meus=p=>p.scope==='channel'||C().isAdmin();
+    let fila,feitos=0,total=0;
+    if(pendente){
+      // Retoma de onde parou: só os que ainda não foram visitados.
+      const catalogo=C().getCatalog();
+      fila=pendente.pendentes.filter(id=>catalogo.some(p=>p.id===id&&meus(p)));
+      feitos=Math.max(0,(+pendente.total||fila.length)-fila.length);
+      total=+pendente.total||fila.length;
+    }else{
+      fila=C().getCatalog().filter(p=>meus(p)&&fichaIncompleta(p)).map(p=>p.id);
+      total=fila.length;
+    }
+    if(!fila.length){localStorage.removeItem(CHAVE_VARREDURA);toast('Todas as fichas já estão completas.','success');return;}
+    varredura={rodando:true,parar:false,feitos,total,achados:{},pendentes:fila.slice()};
+    window.addEventListener('beforeunload',avisarSaidaDaVarredura);
+    guardarVarredura();pintarVarredura();
+    for(const id of fila){
+      if(varredura.parar)break;
+      const atual=C().getCatalog().find(p=>p.id===id);
+      if(atual&&fichaIncompleta(atual))await completarFichaDe(atual);
+      varredura.feitos++;
+      varredura.pendentes=varredura.pendentes.filter(outro=>outro!==id);
+      guardarVarredura();pintarVarredura();
       await new Promise(r=>setTimeout(r,0)); // devolve o controle à interface
     }
-    cacaDeImagens.rodando=false;botao.disabled=false;parar.hidden=true;
-    const detalhe=[porFonte.ebc_play&&porFonte.ebc_play+' do acervo do Play',porFonte.ebc_site&&porFonte.ebc_site+' dos sites da EBC',porFonte.web&&porFonte.web+' da busca aberta'].filter(Boolean).join(', ');
-    texto.textContent=(cacaDeImagens.parar?'Interrompido. ':'Concluído. ')+achadas+' imagem(ns) encontrada(s)'+(detalhe?' ('+detalhe+')':'')+' · '+semFonte+' sem correspondência'+(falhas?' · '+falhas+' falha(s)':'')+'.';
+    const interrompida=varredura.parar;
+    varredura.rodando=false;
+    window.removeEventListener('beforeunload',avisarSaidaDaVarredura);
+    guardarVarredura();
+    const resumo=resumoDaVarredura(),falhas=varredura.achados.falha||0;
+    pintarVarredura((interrompida?'Interrompido. ':'Concluído. ')
+      +(resumo?'Preenchido: '+resumo+'.':'Nada novo encontrado.')
+      +(falhas?' '+falhas+' falha(s) de consulta.':'')
+      +(interrompida?' Clique de novo para continuar de onde parou.':''));
     renderCatalog();renderAdmin();
-    toast(achadas?achadas+' imagem(ns) preenchida(s). Confira e marque as que estiverem erradas.':'Nenhuma imagem nova encontrada.',achadas?'success':'');
+    toast(resumo?'Fichas completadas: '+resumo+'. Confira antes de publicar.':'Nada novo encontrado no acervo.',resumo?'success':'');
   }
   // Busca a capa sozinha enquanto a pessoa digita o título do programa. Preenche só
   // quando o campo de imagem está vazio: quem já escolheu uma capa não é atropelado.
@@ -725,13 +901,32 @@
       ultimoBuscado=titulo;
       mostrar('Procurando no acervo do TV Brasil Play…','buscando');
       try{
-        const sugestao=await window.EBCPlay.sugerirPara({title:titulo},{minimo:'alta'});
+        const sugestao=await window.EBCPlay.sugerirPara({title:titulo},{minimo:'alta',tmdb:chaveTmdb()});
         if(campoUrl.value.trim())return;               // a pessoa digitou enquanto buscávamos
         if(campoTitulo.value.trim()!==titulo)return;   // o título mudou no meio do caminho
         if(!sugestao||!sugestao.campos.artwork){mostrar('Nada encontrado no acervo para este título. Você pode colar o endereço de uma imagem.','vazio');return;}
         campoUrl.value=sugestao.campos.artwork.url;
-        const extras=sugestao.tocados.filter(campo=>campo!=='imagem');
-        mostrar('Capa encontrada no acervo (‘'+sugestao.correspondente.titulo+'’).'+(extras.length?' Também há '+extras.join(', ')+' — o botão “Buscar imagens e episódios” no catálogo preenche isso.':'')+' Para recusar, apague o endereço.','achou');
+        campoUrl.dispatchEvent(new Event('input'));
+        // Agora que a ficha tem campo de sinopse, categoria, ano e tipo, o que o acervo
+        // trouxe entra direto — mas só onde estiver vazio, a mesma regra da imagem.
+        const preenchidos=['imagem'];
+        const encaixar=(seletor,valor)=>{
+          const alvo=$(seletor);
+          if(!alvo||!valor||String(alvo.value||'').trim())return false;
+          alvo.value=valor;return true;
+        };
+        if(encaixar('#program-synopsis',sugestao.campos.synopsis))preenchidos.push('sinopse');
+        if(encaixar('#program-category',sugestao.campos.category))preenchidos.push('categoria');
+        if(encaixar('#program-year',sugestao.campos.productionYear))preenchidos.push('ano');
+        if(sugestao.campos.contentFormat&&!$('#program-content-format')?.value.trim()){
+          $('#program-content-format').value=sugestao.campos.contentFormat;
+          preenchidos.push('tipo de obra');
+        }
+        const restantes=sugestao.tocados.filter(campo=>!preenchidos.includes(campo));
+        mostrar('Capa encontrada no acervo (‘'+sugestao.correspondente.titulo+'’).'
+          +(preenchidos.length>1?' Também preenchi: '+preenchidos.slice(1).join(', ')+'.':'')
+          +(restantes.length?' Ainda há '+restantes.join(', ')+' — use “Completar fichas que faltam” na Administração.':'')
+          +' Para recusar, apague o endereço.','achou');
       }catch(_){
         mostrar('Não foi possível consultar o acervo agora. O endereço manual continua funcionando.','vazio');
       }
@@ -740,69 +935,364 @@
     // Programa novo já abre buscando; programa existente só busca se mexerem no título.
     if(!campoUrl.value.trim()&&campoTitulo.value.trim().length>=3)buscar();
   }
+  // ===== Ficha do programa =====
+  // O formulário antigo era uma grade de dez campos de peso igual, com a vigência
+  // fechada numa sanfona no fim e as temporadas em sanfona dentro de sanfona. Aqui
+  // o programa vira cabeçalho, a vigência sobe para uma faixa sempre visível e cada
+  // assunto vira uma seção da trilha lateral. Todos os campos de antes continuam,
+  // com os mesmos id — saveProgramForm não precisou mudar de lugar para achá-los.
+  const TIPOS_DE_OBRA=['Programa','Série','Minissérie','Novela','Longa-metragem','Média-metragem','Curta-metragem','Especial','Interprograma'];
+  // Só estes numeram episódio. Serve para sugerir o modo em programa NOVO; em programa
+  // que já tem temporada cadastrada, nada é trocado sozinho — trocar apagaria episódio.
+  const TIPOS_COM_EPISODIO=['Programa','Série','Minissérie','Novela'];
+
+  function chipsDeTipo(atual){
+    const escolhido=String(atual||'').trim();
+    const conhecido=TIPOS_DE_OBRA.some(tipo=>C().normalize(tipo)===C().normalize(escolhido));
+    // Tipo vindo do acervo que não está na lista entra como mais uma opção, em vez de
+    // ser descartado no caminho.
+    const lista=conhecido||!escolhido?TIPOS_DE_OBRA:[...TIPOS_DE_OBRA,escolhido];
+    return lista.map(tipo=>'<button type="button" class="ficha-tipo'
+      +(C().normalize(tipo)===C().normalize(escolhido)?' ativo':'')+'" data-tipo="'+esc(tipo)+'">'+esc(tipo)+'</button>').join('');
+  }
+
+  function situacaoDaFicha(right){
+    const fim=String(right?.endsAt||'').trim();
+    if(!fim)return{tom:'neutro',titulo:'Vigência não informada',detalhe:'Sem data de término cadastrada.'};
+    const hoje=C().isoDate(new Date()),dias=Math.round((C().parseLocalDate(fim)-C().parseLocalDate(hoje))/86400000);
+    if(dias<0)return{tom:'vencida',titulo:'Vigência vencida em '+C().formatDate(fim),detalhe:'Não deve ir ao ar sem renovar o contrato.'};
+    if(dias<=60)return{tom:'vencendo',titulo:'Vigência até '+C().formatDate(fim),detalhe:'faltam '+dias+' dia(s)'};
+    return{tom:'ok',titulo:'Vigência até '+C().formatDate(fim),detalhe:'faltam '+dias+' dias'};
+  }
+
+  function cabecalhoDaFicha(p,novo){
+    const capa=String(p.artwork?.url||'').trim();
+    const arte=capa&&safeHttpsUrl(capa)
+      ?'<div class="ficha-arte" style="background-image:url(\''+esc(capa).replace(/'/g,'%27')+'\')"></div><div class="ficha-veu"></div>'
+      :'';
+    const selo=(texto,extra='')=>texto?'<span class="ficha-selo'+extra+'">'+esc(texto)+'</span>':'';
+    const rotulos={live:'Ao vivo',recorded:'Gravado',mixed:'Misto',unspecified:''};
+    const origens={own:'Produção própria',independent:'Produção independente',licensed:'Licenciado',news:'Jornalismo',institutional:'Institucional'};
+    const cl=String(p.cl||'').trim();
+    const selos=[
+      p.contentFormat?'<span class="ficha-selo solido">'+esc(p.contentFormat)+'</span>':'',
+      selo(p.category),
+      cl?'<span class="ficha-selo"><img src="assets/cl/'+encodeURIComponent(cl)+'.svg" alt="" class="ficha-selo-cl">'+esc(cl.replace('_',' '))+'</span>':'',
+      selo((p.defaultDuration||30)+' min'),
+      selo(rotulos[p.type]||''),
+      selo(origens[p.origin]||'')
+    ].filter(Boolean).join('');
+    return '<header class="ficha-cabecalho'+(arte?' com-arte':'')+'">'+arte
+      +'<div class="ficha-cabecalho-corpo">'
+      +'<p class="eyebrow">'+(novo?'Novo cadastro':'Catálogo estruturado')+'</p>'
+      +'<h2 class="ficha-titulo" id="ficha-titulo-eco">'+esc(p.title||'Novo programa')+'</h2>'
+      +'<div class="ficha-selos" id="ficha-selos">'+selos+'</div>'
+      +'</div></header>';
+  }
+
+  function faixaDeSituacao(right){
+    const s=situacaoDaFicha(right),contrato=String(right?.contract||'').trim(),limite=right?.exhibitionLimit;
+    const partes=[
+      '<strong>'+esc(s.titulo)+'</strong>',
+      s.detalhe?'<span>'+esc(s.detalhe)+'</span>':'',
+      contrato?'<span>contrato '+esc(contrato)+'</span>':'<span class="ficha-falta">contrato não informado</span>',
+      limite===null||limite===undefined||limite===''?'<span>exibições sem limite</span>':'<span>limite de '+(+limite)+' exibições</span>'
+    ].filter(Boolean).join('<i></i>');
+    return '<div class="ficha-situacao t-'+s.tom+'" id="ficha-situacao"><span class="ficha-ponto"></span>'+partes
+      +'<button type="button" class="ficha-atalho" data-ir="direitos">Ver direitos</button></div>';
+  }
+
   function openProgramForm(program=null){
     if(program?.scope==='global'&&!C().isAdmin()){toast('Este programa global esta disponivel apenas para leitura.','error');return;}
-    const p=C().clone(program||{title:'',scope:C().isAdmin()?'global':'channel',type:'unspecified',origin:'licensed',category:'',subgroups:[],cl:'',defaultDuration:30,episodeMode:'none',continuous:false,episodeCounter:1,seasons:[],rights:[]}),episodeMode=C().episodeModeFor(p),right=p.rights?.[0]||{},scopeOptions=C().isAdmin()?'<option value="global" '+(p.scope!=='channel'?'selected':'')+'>Todos os canais</option><option value="channel" '+(p.scope==='channel'?'selected':'')+'>Somente este canal</option>':'<option value="channel" selected>Somente este canal</option>';
-    openModal({title:program?'Editar programa':'Novo programa',kicker:'Catálogo estruturado',wide:true,body:
-      '<div class="form-grid"><label>Nome do programa<input id="program-title" value="'+esc(p.title)+'" maxlength="300"></label><label>Disponibilidade<select id="program-scope">'+scopeOptions+'</select></label><label>Formato<select id="program-type"><option value="live" '+(p.type==='live'?'selected':'')+'>Ao vivo</option><option value="recorded" '+(p.type==='recorded'?'selected':'')+'>Gravado</option><option value="mixed" '+(p.type==='mixed'?'selected':'')+'>Misto</option><option value="unspecified" '+(p.type==='unspecified'?'selected':'')+'>Sem definição</option></select></label><label>Origem<select id="program-origin"><option value="own" '+(p.origin==='own'?'selected':'')+'>Produção própria</option><option value="independent" '+(p.origin==='independent'?'selected':'')+'>Produção independente</option><option value="licensed" '+(p.origin==='licensed'?'selected':'')+'>Licenciado</option><option value="news" '+(p.origin==='news'?'selected':'')+'>Jornalismo</option><option value="institutional" '+(p.origin==='institutional'?'selected':'')+'>Institucional</option></select></label><label>Classificação Indicativa (CL)<select id="program-cl"><option value="">Sem classificação</option><option value="Livre" '+(p.cl==='Livre'?'selected':'')+'>Livre</option><option value="6_anos" '+(p.cl==='6_anos'?'selected':'')+'>6 anos</option><option value="10_anos" '+(p.cl==='10_anos'?'selected':'')+'>10 anos</option><option value="12_anos" '+(p.cl==='12_anos'?'selected':'')+'>12 anos</option><option value="14_anos" '+(p.cl==='14_anos'?'selected':'')+'>14 anos</option><option value="16_anos" '+(p.cl==='16_anos'?'selected':'')+'>16 anos</option><option value="18_anos" '+(p.cl==='18_anos'?'selected':'')+'>18 anos</option></select></label><label>Categoria principal<input id="program-category" value="'+esc(p.category)+'" maxlength="200" placeholder="Ex.: Documentário"></label><label>Subgrupos / etiquetas<input id="program-subgroups" value="'+esc((p.subgroups||[]).join('; '))+'" maxlength="1000" placeholder="Ex.: Música; Cultura; Faixa da tarde"><span class="helper">Separe vários subgrupos por ponto e vírgula.</span></label><label>Imagem externa (URL HTTPS)<input id="program-artwork-url" type="url" value="'+esc(p.artwork?.url||'')+'" maxlength="1900" placeholder="https://servidor/imagem.jpg"><span class="helper">Cole o endereço HTTPS direto da imagem, de qualquer site (distribuidora, Google Imagens, Bing Imagens, Prime Video etc.). O sistema testa se ela carrega antes de salvar. Use “Buscar imagens e episódios” no topo para preencher automaticamente pelo acervo da EBC quando disponível. <a id="program-artwork-search" target="_blank" rel="noopener noreferrer">Pesquisar referência na web</a>. O PDF não utiliza a imagem.</span><span id="program-artwork-status" class="helper artwork-status"></span><label class="toggle artwork-wrong"><input id="program-artwork-wrong" type="checkbox" '+(p.artwork?.flagged?'checked':'')+'> Imagem errada ou inadequada<span class="helper">Marque para o sistema parar de sugerir sozinho neste programa. A imagem é retirada e você pode colar outra ou deixar sem nenhuma.</span></label></label><label>Grupo de cor<select id="program-color-group">'+colorGroupOptions(p.colorGroupId)+'</select><span id="program-color-help" class="color-selection-preview">Automático pela classificação</span></label><label>Duração padrão (min)<input id="program-duration" type="number" min="1" max="1440" value="'+esc(p.defaultDuration||30)+'"></label></div>'+
-      '<section class="episode-mode-panel"><label class="field">Controle de episódios<select id="program-episode-mode"><option value="none" '+(episodeMode==='none'?'selected':'')+'>Não usa episódios</option><option value="continuous" '+(episodeMode==='continuous'?'selected':'')+'>Numeração contínua</option><option value="catalog" '+(episodeMode==='catalog'?'selected':'')+'>Temporadas e episódios cadastrados</option></select><span id="program-episode-help" class="helper"></span></label><div id="continuous-episode-fields" class="inline-fields"><label class="field">Próximo episódio<input id="program-counter" type="number" min="1" value="'+esc(p.episodeCounter||1)+'"></label></div></section>'+
-      '<fieldset id="catalog-episode-fields" class="form-section"><legend>Temporadas e episódios</legend><div id="season-list"></div><button id="add-season" class="button button-secondary" type="button"><span data-icon="plus"></span> Adicionar temporada</button></fieldset>'+
-      '<details><summary><strong>Direitos e contrato</strong></summary><div class="form-grid" style="margin-top:12px"><label>Contrato<input id="right-contract" value="'+esc(right.contract||'')+'"></label><label>Fim da vigência<input id="right-expiry" type="date" value="'+esc(right.endsAt||'')+'"></label><label>Limite de exibições<input id="right-limit" type="number" min="0" value="'+esc(right.exhibitionLimit??'')+'"></label><label class="toggle"><input id="right-reruns" type="checkbox" '+(right.rerunsCount!==false?'checked':'')+'> Reprises contam no limite</label></div></details>',
-      footer:'<button class="button button-secondary" data-modal-cancel type="button">Cancelar</button><button id="save-program" class="button button-primary" type="button">Salvar programa</button>'});
-    const seasons=p.seasons||[];seasons.forEach(s=>addSeasonEditor(s));$('#add-season').addEventListener('click',()=>addSeasonEditor({id:C().uid('season'),number:$('#season-list').children.length+1,title:'',episodes:[]}));const updateEpisodeMode=()=>{const mode=$('#program-episode-mode').value,help={none:'Para jornais, programas ao vivo, filmes e conteúdos que não precisam de numeração.',continuous:'Para programas diários com sequência aberta e próximo número controlado.',catalog:'Para séries e obras com temporadas e episódios conhecidos.'};$('#program-episode-help').textContent=help[mode];$('#continuous-episode-fields').classList.toggle('hidden',mode!=='continuous');$('#catalog-episode-fields').classList.toggle('hidden',mode!=='catalog');};$('#program-episode-mode').addEventListener('change',updateEpisodeMode);updateEpisodeMode();$('#program-color-group').addEventListener('change',updateProgramColorHelp);['program-type','program-origin'].forEach(id=>$('#'+id).addEventListener('change',updateProgramColorHelp));$('#program-category').addEventListener('input',updateProgramColorHelp);const updateArtworkSearch=()=>{$('#program-artwork-search').href='https://www.bing.com/images/search?q='+encodeURIComponent((($('#program-title').value||'').trim()||'programa')+' TV Brasil EBC');};$('#program-title').addEventListener('input',updateArtworkSearch);updateArtworkSearch();updateProgramColorHelp();ligarBuscaAutomaticaDeCapa();$('[data-modal-cancel]').addEventListener('click',closeModal);$('#save-program').addEventListener('click',()=>saveProgramForm(p));
-  }
-  function addSeasonEditor(season){
-    const card=document.createElement('details');card.className='season-editor panel';card.open=$('#season-list').children.length===0;card.dataset.id=season.id||C().uid('season');
-    const epCount=(season.episodes||[]).length;
-    card.innerHTML='<summary class="season-summary"><span><strong>Temporada '+(season.number||'1')+'</strong> <span class="scope-pill season-badge">'+epCount+' ep(s)</span></span><button class="button button-danger remove-season" type="button">Remover temporada</button></summary><div class="season-body"><div class="inline-fields" style="margin-top:10px"><label class="field">Nº Temporada<input class="season-number" value="'+esc(season.number||'')+'"></label><label class="field">Nome da temporada<input class="season-title" value="'+esc(season.title||'')+'"></label><label class="field">Quantidade de episódios<input class="season-ep-count" type="number" min="0" value="'+epCount+'"></label></div><details class="episode-list-details"><summary><strong>Editar títulos dos episódios</strong><span class="episode-list-count">'+epCount+' item(ns)</span></summary><div class="episode-editor"></div><button class="text-button add-episode" type="button"><span data-icon="plus"></span> Adicionar episódio individual</button></details></div>';
-    $('#season-list').append(card);
-    const container=$('.episode-editor',card);
-    (season.episodes||[]).forEach(ep=>addEpisodeRow(container,ep));
+    const p=C().clone(program||{title:'',scope:C().isAdmin()?'global':'channel',type:'unspecified',origin:'licensed',category:'',subgroups:[],cl:'',defaultDuration:30,episodeMode:'none',continuous:false,episodeCounter:1,seasons:[],rights:[],contentFormat:'',synopsis:'',productionYear:0});
+    const episodeMode=C().episodeModeFor(p),right=p.rights?.[0]||{};
+    const scopeOptions=C().isAdmin()
+      ?'<option value="global" '+(p.scope!=='channel'?'selected':'')+'>Todos os canais</option><option value="channel" '+(p.scope==='channel'?'selected':'')+'>Somente este canal</option>'
+      :'<option value="channel" selected>Somente este canal</option>';
+    const opcao=(valor,rotulo,atual)=>'<option value="'+valor+'" '+(atual===valor?'selected':'')+'>'+rotulo+'</option>';
 
-    const updateCountBadge=()=>{
-      const count=container.children.length;
-      $('.season-badge',card).textContent=count+' ep(s)';
-      $('.episode-list-count',card).textContent=count+' item(ns)';
-      $('.season-ep-count',card).value=count;
-    };
+    const identificacao='<section class="ficha-painel ativo" id="ficha-identificacao" data-painel="identificacao">'
+      +'<div class="ficha-bloco"><span class="ficha-rotulo">Tipo de obra</span>'
+      +'<div class="ficha-tipos" id="program-content-format-chips">'+chipsDeTipo(p.contentFormat)+'</div>'
+      +'<input type="hidden" id="program-content-format" value="'+esc(p.contentFormat||'')+'">'
+      +'<p class="helper">Decide só uma coisa: se a seção de episódios aparece. Dá para trocar depois sem perder nada — um especial que vira semanal passa a Programa. Tipo vindo do acervo que não estiver aqui entra na lista.</p></div>'
+      +'<div class="ficha-bloco"><label class="ficha-rotulo" for="program-title">Nome do programa</label>'
+      +'<input id="program-title" class="ficha-destaque" value="'+esc(p.title)+'" maxlength="300"></div>'
+      +'<div class="ficha-bloco"><label class="ficha-rotulo" for="program-synopsis">Sinopse</label>'
+      +'<textarea id="program-synopsis" rows="4" maxlength="4000" placeholder="Do que se trata o programa.">'+esc(p.synopsis||'')+'</textarea>'
+      +'<p class="helper">Preenchida sozinha pelo acervo da EBC, pela Wikipédia ou pelo TMDB quando está vazia. O que você escrever aqui nunca é substituído.</p></div>'
+      +'<div class="ficha-grade tres">'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Categoria principal</span><input id="program-category" value="'+esc(p.category)+'" maxlength="200" placeholder="Ex.: Documentário"></label>'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Classificação indicativa</span><select id="program-cl">'
+      +'<option value="">Sem classificação</option>'+['Livre','6_anos','10_anos','12_anos','14_anos','16_anos','18_anos'].map(v=>opcao(v,v.replace('_',' '),p.cl)).join('')+'</select></label>'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Duração padrão (min)</span><input id="program-duration" type="number" min="1" max="1440" value="'+esc(p.defaultDuration||30)+'"></label>'
+      +'</div>'
+      +'<div class="ficha-grade tres">'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Exibição</span><select id="program-type">'
+      +opcao('live','Ao vivo',p.type)+opcao('recorded','Gravado',p.type)+opcao('mixed','Misto',p.type)+opcao('unspecified','Sem definição',p.type)+'</select></label>'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Origem</span><select id="program-origin">'
+      +opcao('own','Produção própria',p.origin)+opcao('independent','Produção independente',p.origin)+opcao('licensed','Licenciado',p.origin)+opcao('news','Jornalismo',p.origin)+opcao('institutional','Institucional',p.origin)+'</select></label>'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Disponibilidade</span><select id="program-scope">'+scopeOptions+'</select></label>'
+      +'</div>'
+      +'<div class="ficha-grade tres">'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Ano de produção</span><input id="program-year" type="number" min="1900" max="2200" value="'+(+p.productionYear||'')+'" placeholder="—"></label>'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Grupo de cor</span><select id="program-color-group">'+colorGroupOptions(p.colorGroupId)+'</select>'
+      +'<span id="program-color-help" class="color-selection-preview">Automático pela classificação</span></label>'
+      +'<div class="ficha-campo"><span class="ficha-rotulo">Etiquetas</span>'
+      +'<div class="ficha-etiquetas"><span id="etiquetas-lista"></span>'
+      +'<input id="etiqueta-nova" placeholder="digite e tecle Enter" aria-label="Nova etiqueta"></div>'
+      +'<input type="hidden" id="program-subgroups" value="'+esc((p.subgroups||[]).join('; '))+'"></div>'
+      +'</div></section>';
 
-    $('.add-episode',card).addEventListener('click',()=>{
-      addEpisodeRow(container,{id:C().uid('episode'),number:container.children.length+1,title:'',duration:''});
-      updateCountBadge();
+    const episodios='<section class="ficha-painel" id="ficha-episodios" data-painel="episodios">'
+      +'<div class="ficha-bloco"><span class="ficha-rotulo">Controle de episódios</span>'
+      +'<select id="program-episode-mode">'
+      +opcao('none','Não usa episódios',episodeMode)+opcao('continuous','Numeração contínua',episodeMode)+opcao('catalog','Temporadas e episódios cadastrados',episodeMode)+'</select>'
+      +'<span id="program-episode-help" class="helper"></span></div>'
+      +'<div id="continuous-episode-fields" class="ficha-grade tres"><label class="ficha-campo"><span class="ficha-rotulo">Próximo episódio</span>'
+      +'<input id="program-counter" type="number" min="1" value="'+esc(p.episodeCounter||1)+'"></label></div>'
+      +'<div id="catalog-episode-fields" class="ficha-temporadas">'
+      +'<div class="ficha-temporadas-lado"><span class="ficha-rotulo">Temporadas</span><div id="season-tabs" class="ficha-temporada-abas"></div>'
+      +'<button id="add-season" class="ficha-adicionar" type="button"><span data-icon="plus"></span> Adicionar temporada</button></div>'
+      +'<div id="season-list" class="ficha-temporada-detalhe"></div>'
+      +'</div></section>';
+
+    const direitos='<section class="ficha-painel" id="ficha-direitos" data-painel="direitos">'
+      +'<div class="ficha-grade dois">'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Contrato</span><input id="right-contract" value="'+esc(right.contract||'')+'" maxlength="200"></label>'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Limite de exibições</span><input id="right-limit" type="number" min="0" value="'+esc(right.exhibitionLimit??'')+'" placeholder="sem limite"></label>'
+      +'</div>'
+      +'<div class="ficha-grade dois">'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Início da vigência</span><input id="right-start" type="date" value="'+esc(right.startsAt||'')+'"></label>'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Fim da vigência</span><input id="right-expiry" type="date" value="'+esc(right.endsAt||'')+'"></label>'
+      +'</div>'
+      +'<label class="toggle"><input id="right-reruns" type="checkbox" '+(right.rerunsCount!==false?'checked':'')+'> Reprises contam no limite</label>'
+      +((p.rights||[]).length>1?'<p class="helper ficha-aviso">Este programa tem '+(p.rights||[]).length+' registros de direitos. Esta tela edita o primeiro; os demais ficam guardados como estão.</p>':'')
+      +'</section>';
+
+    const imagem='<section class="ficha-painel" id="ficha-imagem" data-painel="imagem">'
+      +'<div class="ficha-imagem-layout">'
+      +'<div class="ficha-previa" id="ficha-previa"></div>'
+      +'<div class="ficha-imagem-campos">'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Endereço da imagem</span>'
+      +'<input id="program-artwork-url" type="url" value="'+esc(p.artwork?.url||'')+'" maxlength="1900" placeholder="https://servidor/imagem.jpg"></label>'
+      +'<span id="program-artwork-status" class="helper artwork-status"></span>'
+      +'<p class="helper">Qualquer site serve — distribuidora, Google Imagens, Bing, Prime Video. O sistema testa se a imagem carrega antes de salvar. <a id="program-artwork-search" target="_blank" rel="noopener noreferrer">Pesquisar referência na web</a>. O PDF não usa a imagem.</p>'
+      +'<label class="toggle"><input id="program-artwork-wrong" type="checkbox" '+(p.artwork?.flagged?'checked':'')+'> Imagem errada ou inadequada'
+      +'<span class="helper">Marque para o sistema parar de sugerir sozinho neste programa. A imagem é retirada e você pode colar outra ou deixar sem nenhuma.</span></label>'
+      +'</div></div></section>';
+
+    const trilha='<nav class="ficha-trilha" id="ficha-trilha">'
+      +'<button type="button" class="ficha-trilha-item ativo" data-ir="identificacao">Identificação</button>'
+      +'<button type="button" class="ficha-trilha-item" data-ir="episodios">Episódios<span class="ficha-conta" id="ficha-conta-episodios"></span></button>'
+      +'<button type="button" class="ficha-trilha-item" data-ir="direitos">Direitos</button>'
+      +'<button type="button" class="ficha-trilha-item" data-ir="imagem">Imagem<span class="ficha-conta" id="ficha-conta-imagem"></span></button>'
+      +'</nav>';
+
+    openModal({title:program?'Editar programa':'Novo programa',kicker:'Catálogo estruturado',
+      classe:'modal-ficha',largura:'min(1120px,calc(100% - 32px))',
+      body:cabecalhoDaFicha(p,!program)+faixaDeSituacao(right)
+        +'<div class="ficha-corpo">'+trilha+'<div class="ficha-paineis">'+identificacao+episodios+direitos+imagem+'</div></div>',
+      footer:'<span class="ficha-rodape-nota">'+(p.scope!=='channel'?'Programa global — vale para todos os canais.':'Somente neste canal.')+'</span>'
+        +'<button class="button button-secondary" data-modal-cancel type="button">Cancelar</button>'
+        +'<button id="save-program" class="button button-primary" type="button">Salvar programa</button>'});
+
+    (p.seasons||[]).forEach(s=>addSeasonEditor(s));
+    redesenharAbasDeTemporada();
+    $('#add-season').addEventListener('click',()=>{
+      addSeasonEditor({id:C().uid('season'),number:$('#season-list').children.length+1,title:'',episodes:[]});
+      redesenharAbasDeTemporada();
+      selecionarTemporada($('#season-list').lastElementChild?.dataset.id);
     });
 
-    $('.season-ep-count',card).addEventListener('change',e=>{
-      const target=Math.max(0,+e.target.value||0);
-      let current=container.children.length;
-      if(target>current){
-        for(let i=current+1;i<=target;i++){
-          addEpisodeRow(container,{id:C().uid('episode'),number:i,title:'',duration:''});
-        }
-        updateCountBadge();
-      }else if(target<current){
-        const rows=[...container.children];
-        const trimmed=rows.slice(target);
-        const hasData=trimmed.some(row=>['.episode-number','.episode-title','.episode-duration'].some(selector=>String(row.querySelector(selector)?.value||'').trim()));
-        if(hasData&&!confirm('Remover '+(current-target)+' episódio(s) preenchidos?')) {
-          e.target.value=current;
-          return;
-        }
-        trimmed.forEach(r=>r.remove());
-        updateCountBadge();
+    const trocarPainel=nome=>{
+      $$('.ficha-painel').forEach(painel=>painel.classList.toggle('ativo',painel.dataset.painel===nome));
+      $$('.ficha-trilha-item').forEach(item=>item.classList.toggle('ativo',item.dataset.ir===nome));
+    };
+    $$('[data-ir]').forEach(botao=>botao.addEventListener('click',()=>trocarPainel(botao.dataset.ir)));
+
+    const atualizarModoDeEpisodio=()=>{
+      const modo=$('#program-episode-mode').value;
+      const ajuda={none:'Para jornais, programas ao vivo, filmes e conteúdos que não precisam de numeração.',
+        continuous:'Para programas diários com sequência aberta e próximo número controlado.',
+        catalog:'Para séries e obras com temporadas e episódios conhecidos.'};
+      $('#program-episode-help').textContent=ajuda[modo];
+      $('#continuous-episode-fields').classList.toggle('hidden',modo!=='continuous');
+      $('#catalog-episode-fields').classList.toggle('hidden',modo!=='catalog');
+      // A trilha esconde Episódios quando o programa não numera: é o que faz o cadastro
+      // de filme caber sem seção vazia esperando ser preenchida.
+      const trilhaEp=$('.ficha-trilha-item[data-ir="episodios"]');
+      if(trilhaEp)trilhaEp.hidden=modo==='none';
+      if(modo==='none'&&$('#ficha-episodios').classList.contains('ativo'))trocarPainel('identificacao');
+      const conta=$('#ficha-conta-episodios');
+      if(conta)conta.textContent=modo==='catalog'?String($$('.episode-row').length||''):'';
+    };
+    $('#program-episode-mode').addEventListener('change',atualizarModoDeEpisodio);
+    atualizarModoDeEpisodio();
+
+    // Tipo de obra: em cadastro NOVO ele sugere o modo de episódio. Em programa que já
+    // existe nada é trocado sozinho — trocar para "não usa" apagaria as temporadas.
+    $$('.ficha-tipo').forEach(botao=>botao.addEventListener('click',()=>{
+      const tipo=botao.dataset.tipo;
+      $$('.ficha-tipo').forEach(outro=>outro.classList.toggle('ativo',outro===botao));
+      $('#program-content-format').value=tipo;
+      const eco=$('#ficha-selos');
+      if(eco){const primeiro=$('.ficha-selo.solido',eco);if(primeiro)primeiro.textContent=tipo;}
+      if(!program){
+        const usa=TIPOS_COM_EPISODIO.includes(tipo);
+        $('#program-episode-mode').value=usa?(tipo==='Programa'?'continuous':'catalog'):'none';
+        atualizarModoDeEpisodio();
+      }
+    }));
+
+    const espelharTitulo=()=>{const eco=$('#ficha-titulo-eco');if(eco)eco.textContent=$('#program-title').value.trim()||'Novo programa';};
+    $('#program-title').addEventListener('input',espelharTitulo);
+
+    const atualizarPrevia=()=>{
+      const alvo=$('#ficha-previa'),url=$('#program-artwork-url').value.trim();
+      if(!alvo)return;
+      const vale=url&&safeHttpsUrl(url);
+      alvo.classList.toggle('vazia',!vale);
+      alvo.style.backgroundImage=vale?'url(\''+url.replace(/'/g,'%27')+'\')':'';
+      alvo.textContent=vale?'':'sem imagem';
+      const conta=$('#ficha-conta-imagem');
+      if(conta){conta.classList.toggle('alerta',!vale);conta.textContent=vale?'':'!';}
+    };
+    $('#program-artwork-url').addEventListener('input',atualizarPrevia);
+    atualizarPrevia();
+
+    const atualizarBuscaNaWeb=()=>{
+      $('#program-artwork-search').href='https://www.bing.com/images/search?q='
+        +encodeURIComponent((($('#program-title').value||'').trim()||'programa')+' TV Brasil EBC');
+    };
+    $('#program-title').addEventListener('input',atualizarBuscaNaWeb);
+    atualizarBuscaNaWeb();
+
+    $('#program-color-group').addEventListener('change',updateProgramColorHelp);
+    ['program-type','program-origin'].forEach(id=>$('#'+id).addEventListener('change',updateProgramColorHelp));
+    $('#program-category').addEventListener('input',updateProgramColorHelp);
+    updateProgramColorHelp();
+    ligarEtiquetas();
+    ligarBuscaAutomaticaDeCapa();
+    $('[data-modal-cancel]').addEventListener('click',closeModal);
+    $('#save-program').addEventListener('click',()=>saveProgramForm(p));
+  }
+
+  // Etiquetas viram fichinhas removíveis, mas o valor continua num campo escondido
+  // separado por ponto e vírgula: é o formato que saveProgramForm já sabe ler.
+  function ligarEtiquetas(){
+    const campo=$('#program-subgroups'),caixa=$('#etiquetas-lista'),entrada=$('#etiqueta-nova');
+    if(!campo||!caixa||!entrada)return;
+    const ler=()=>campo.value.split(/[;,|]/).map(valor=>valor.trim()).filter(Boolean);
+    const pintar=()=>{
+      caixa.innerHTML=ler().map((etiqueta,indice)=>'<span class="ficha-etiqueta">'+esc(etiqueta)
+        +'<button type="button" data-indice="'+indice+'" aria-label="Remover '+esc(etiqueta)+'">&#215;</button></span>').join('');
+      $$('button',caixa).forEach(botao=>botao.addEventListener('click',()=>{
+        const lista=ler();lista.splice(+botao.dataset.indice,1);campo.value=lista.join('; ');pintar();
+      }));
+    };
+    entrada.addEventListener('keydown',evento=>{
+      if(evento.key!=='Enter'&&evento.key!==',')return;
+      evento.preventDefault();
+      const valor=entrada.value.trim();if(!valor)return;
+      const lista=ler();
+      if(!lista.some(existente=>C().normalize(existente)===C().normalize(valor)))lista.push(valor);
+      campo.value=lista.join('; ');entrada.value='';pintar();
+    });
+    pintar();
+  }
+
+  // As temporadas continuam todas no DOM — só uma fica visível. Assim a gravação, que
+  // varre .season-editor, continua enxergando tudo, e a tela para de ter sanfona
+  // dentro de sanfona.
+  function redesenharAbasDeTemporada(){
+    const abas=$('#season-tabs');if(!abas)return;
+    const cartoes=$$('.season-editor');
+    abas.innerHTML=cartoes.map((cartao,indice)=>{
+      const numero=$('.season-number',cartao)?.value||String(indice+1);
+      const quantos=$$('.episode-row',cartao).length;
+      return '<button type="button" class="ficha-temporada-aba'+(cartao.classList.contains('ativa')?' ativa':'')+'" data-temporada="'+esc(cartao.dataset.id)+'">'
+        +'<span>Temporada '+esc(numero)+'</span><span class="ficha-temporada-qtd">'+quantos+' ep</span></button>';
+    }).join('');
+    $$('.ficha-temporada-aba',abas).forEach(aba=>aba.addEventListener('click',()=>selecionarTemporada(aba.dataset.temporada)));
+    if(cartoes.length&&!cartoes.some(cartao=>cartao.classList.contains('ativa')))selecionarTemporada(cartoes[0].dataset.id);
+  }
+  function selecionarTemporada(id){
+    $$('.season-editor').forEach(cartao=>cartao.classList.toggle('ativa',cartao.dataset.id===id));
+    $$('.ficha-temporada-aba').forEach(aba=>aba.classList.toggle('ativa',aba.dataset.temporada===id));
+  }
+
+  function addSeasonEditor(season){
+    const cartao=document.createElement('div');
+    cartao.className='season-editor'+($('#season-list').children.length?'':' ativa');
+    cartao.dataset.id=season.id||C().uid('season');
+    const quantos=(season.episodes||[]).length;
+    cartao.innerHTML='<div class="ficha-temporada-topo">'
+      +'<label class="ficha-campo estreito"><span class="ficha-rotulo">Nº Temporada</span><input class="season-number" value="'+esc(season.number||'')+'"></label>'
+      +'<label class="ficha-campo"><span class="ficha-rotulo">Nome da temporada</span><input class="season-title" value="'+esc(season.title||'')+'"></label>'
+      +'<label class="ficha-campo estreito"><span class="ficha-rotulo">Quantidade de episódios</span><input class="season-ep-count" type="number" min="0" value="'+quantos+'"></label>'
+      +'<button class="ficha-remover remove-season" type="button">Remover temporada</button></div>'
+      +'<div class="ficha-episodios-topo"><span>Nº</span><span>Título do episódio</span><span>Duração</span><span></span></div>'
+      +'<div class="episode-editor"></div>'
+      +'<button class="ficha-adicionar add-episode" type="button"><span data-icon="plus"></span> Adicionar episódio</button>';
+    $('#season-list').append(cartao);
+    const container=$('.episode-editor',cartao);
+    (season.episodes||[]).forEach(episodio=>addEpisodeRow(container,episodio));
+
+    const atualizarContagem=()=>{
+      $('.season-ep-count',cartao).value=container.children.length;
+      redesenharAbasDeTemporada();
+      const conta=$('#ficha-conta-episodios');
+      if(conta&&$('#program-episode-mode')?.value==='catalog')conta.textContent=String($$('.episode-row').length||'');
+    };
+    $('.season-number',cartao).addEventListener('input',redesenharAbasDeTemporada);
+    $('.add-episode',cartao).addEventListener('click',()=>{
+      addEpisodeRow(container,{id:C().uid('episode'),number:container.children.length+1,title:'',duration:''});
+      atualizarContagem();
+    });
+    $('.season-ep-count',cartao).addEventListener('change',evento=>{
+      const alvo=Math.max(0,+evento.target.value||0);
+      const atual=container.children.length;
+      if(alvo>atual){
+        for(let i=atual+1;i<=alvo;i++)addEpisodeRow(container,{id:C().uid('episode'),number:i,title:'',duration:''});
+        atualizarContagem();
+      }else if(alvo<atual){
+        const linhas=[...container.children],cortadas=linhas.slice(alvo);
+        const temDados=cortadas.some(linha=>['.episode-number','.episode-title','.episode-duration'].some(seletor=>String(linha.querySelector(seletor)?.value||'').trim()));
+        if(temDados&&!confirm('Remover '+(atual-alvo)+' episódio(s) preenchidos?')){evento.target.value=atual;return;}
+        cortadas.forEach(linha=>linha.remove());
+        atualizarContagem();
       }
     });
+    $('.remove-season',cartao).addEventListener('click',evento=>{
+      evento.preventDefault();cartao.remove();redesenharAbasDeTemporada();
+    });
+    renderIcons(cartao);
+  }
 
-    $('.remove-season',card).addEventListener('click',e=>{e.preventDefault();card.remove();});
-    renderIcons(card);
-  }
   function addEpisodeRow(container,episode){
-    const row=document.createElement('div');row.className='episode-row';row.dataset.id=episode.id||C().uid('episode');row.innerHTML='<input class="episode-number" aria-label="Número do episódio" value="'+esc(episode.number||'')+'" placeholder="Nº"><input class="episode-title" aria-label="Título do episódio" value="'+esc(episode.title||'')+'" placeholder="Título do episódio"><input class="episode-duration" type="number" aria-label="Duração" value="'+esc(episode.duration||'')+'" placeholder="Min"><button class="icon-button remove-episode" type="button" aria-label="Remover episódio"><span data-icon="close"></span></button>';container.append(row);$('.remove-episode',row).addEventListener('click',()=>{row.remove();const card=container.closest('.season-editor');if(card){const count=container.children.length;$('.season-badge',card).textContent=count+' ep(s)';$('.episode-list-count',card).textContent=count+' item(ns)';$('.season-ep-count',card).value=count;}});renderIcons(row);
+    const linha=document.createElement('div');
+    linha.className='episode-row';
+    linha.dataset.id=episode.id||C().uid('episode');
+    linha.innerHTML='<input class="episode-number" aria-label="Número do episódio" value="'+esc(episode.number||'')+'" placeholder="Nº">'
+      +'<input class="episode-title" aria-label="Título do episódio" value="'+esc(episode.title||'')+'" placeholder="sem título">'
+      +'<input class="episode-duration" type="number" aria-label="Duração em minutos" value="'+esc(episode.duration||'')+'" placeholder="min">'
+      +'<button class="icon-button remove-episode" type="button" aria-label="Remover episódio"><span data-icon="close"></span></button>';
+    container.append(linha);
+    $('.remove-episode',linha).addEventListener('click',()=>{
+      const cartao=container.closest('.season-editor');
+      linha.remove();
+      if(cartao)$('.season-ep-count',cartao).value=container.children.length;
+      redesenharAbasDeTemporada();
+    });
+    renderIcons(linha);
   }
+
   async function saveProgramForm(original){
     try{
       const title=$('#program-title').value.trim();if(!title)throw new Error('Informe o nome do programa.');const episodeMode=$('#program-episode-mode').value,seasons=episodeMode==='catalog'?$$('.season-editor').map((card,index)=>{const previous=(original.seasons||[]).find(season=>season.id===card.dataset.id)||{};const episodes=$$('.episode-row',card).map(row=>({id:row.dataset.id,number:$('.episode-number',row).value.trim(),title:$('.episode-title',row).value.trim(),duration:+$('.episode-duration',row).value||+$('#program-duration').value||30,status:'available'})).filter(e=>e.number||e.title);return {...previous,id:card.dataset.id,number:$('.season-number',card).value.trim(),title:$('.season-title',card).value.trim(),order:index+1,episodeCount:episodes.length,episodes};}).filter(s=>s.number||s.title||s.episodes.length):[];
-      const expiry=$('#right-expiry').value,limit=$('#right-limit').value,contract=$('#right-contract').value.trim(),existingRights=original.rights||[],remainingRights=existingRights.slice(1);const rights=expiry||limit||contract?[{...(existingRights[0]||{}),id:existingRights[0]?.id||C().uid('right'),contract,startsAt:existingRights[0]?.startsAt||'',endsAt:expiry,exhibitionLimit:limit===''?null:+limit,rerunsCount:$('#right-reruns').checked,channels:existingRights[0]?.channels||Object.keys(C().CHANNELS)},...remainingRights]:remainingRights;
-      const artworkUrlValue=$('#program-artwork-url').value.trim();if(artworkUrlValue&&!safeHttpsUrl(artworkUrlValue))throw new Error('A imagem precisa usar uma URL HTTPS válida.');if(artworkUrlValue&&!directArtworkUrl(artworkUrlValue)&&!mappedArtworkPage(artworkUrlValue)&&!(await carregaComoImagem(artworkUrlValue)))throw new Error('Esse endereço não devolveu uma imagem. Confira se é o endereço direto do arquivo (não o de uma página) e se ele abre sozinho no navegador.');const previousArtwork=original.artwork?.source==='user_catalog'?null:(original.artwork||null),scope=C().isAdmin()?$('#program-scope').value:'channel',item={...original,id:original.id||C().programId(title,seasons[0]?.number||'',contract),title,scope,type:$('#program-type').value,origin:$('#program-origin').value,cl:$('#program-cl').value,category:$('#program-category').value.trim(),subgroups:$('#program-subgroups').value.split(/[;,|]/).map(value=>value.trim()).filter(Boolean),colorGroupId:$('#program-color-group').value,artwork:(()=>{
+      const expiry=$('#right-expiry').value,limit=$('#right-limit').value,contract=$('#right-contract').value.trim(),existingRights=original.rights||[],remainingRights=existingRights.slice(1);const inicio=$('#right-start')?.value||'';const rights=expiry||limit||contract||inicio?[{...(existingRights[0]||{}),id:existingRights[0]?.id||C().uid('right'),contract,startsAt:$('#right-start')?.value||existingRights[0]?.startsAt||'',endsAt:expiry,exhibitionLimit:limit===''?null:+limit,rerunsCount:$('#right-reruns').checked,channels:existingRights[0]?.channels||Object.keys(C().CHANNELS)},...remainingRights]:remainingRights;
+      const artworkUrlValue=$('#program-artwork-url').value.trim();if(artworkUrlValue&&!safeHttpsUrl(artworkUrlValue))throw new Error('A imagem precisa usar uma URL HTTPS válida.');if(artworkUrlValue&&!directArtworkUrl(artworkUrlValue)&&!mappedArtworkPage(artworkUrlValue)&&!(await carregaComoImagem(artworkUrlValue)))throw new Error('Esse endereço não devolveu uma imagem. Confira se é o endereço direto do arquivo (não o de uma página) e se ele abre sozinho no navegador.');const previousArtwork=original.artwork?.source==='user_catalog'?null:(original.artwork||null),scope=C().isAdmin()?$('#program-scope').value:'channel',item={...original,id:original.id||C().programId(title,seasons[0]?.number||'',contract),title,scope,type:$('#program-type').value,origin:$('#program-origin').value,cl:$('#program-cl').value,category:$('#program-category').value.trim(),contentFormat:$('#program-content-format')?.value.trim()||original.contentFormat||'',synopsis:$('#program-synopsis')?.value.trim()||'',productionYear:+$('#program-year')?.value||0,subgroups:$('#program-subgroups').value.split(/[;,|]/).map(value=>value.trim()).filter(Boolean),colorGroupId:$('#program-color-group').value,artwork:(()=>{
         // "Imagem errada" é uma decisão da pessoa e precisa sobreviver às buscas
         // automáticas: guardamos flagged no próprio cadastro e a varredura respeita.
         const marcadaErrada=!!$('#program-artwork-wrong')?.checked;
@@ -1008,8 +1498,17 @@
     const caca=$('#artwork-hunt-start');
     if(caca&&!caca.dataset.bound){
       caca.dataset.bound='1';
-      caca.addEventListener('click',procurarImagensQueFaltam);
-      $('#artwork-hunt-stop')?.addEventListener('click',()=>{cacaDeImagens.parar=true;});
+      caca.addEventListener('click',varrerFichasIncompletas);
+      $('#artwork-hunt-stop')?.addEventListener('click',()=>{varredura.parar=true;});
+    }
+    // Recarregar a aba mata a varredura no meio. O progresso fica guardado, então
+    // aqui o botão passa a oferecer a continuação em vez de recomeçar do zero.
+    if(caca&&!varredura.rodando){
+      const pendente=varreduraPendente();
+      if(pendente){
+        pintarVarredura('Varredura interrompida com '+pendente.pendentes.length+' programa(s) por visitar. Clique para continuar de onde parou.');
+        if(caca.lastChild&&caca.lastChild.nodeType===3)caca.lastChild.nodeValue=' Continuar de onde parou';
+      }
     }
     const visual=$('#visual-proposta-toggle');
     if(visual&&!visual.dataset.bound){
@@ -1018,6 +1517,28 @@
       visual.addEventListener('change',event=>{applyPropostaVisual(event.target.checked);toast(event.target.checked?'Proposta de visual ativada neste navegador.':'Visual original restaurado.','success');});
     }
     const preferences=C().getPreferences(),enabled=$('#global-artwork-enabled'),opacity=$('#global-artwork-opacity');
+    // Chave do TMDB: só admin grava, e a gravação passa pelo núcleo, que valida o
+    // formato. O campo é password para não ficar exposto na tela de quem está ao lado.
+    const campoTmdb=$('#tmdb-key');
+    if(campoTmdb){
+      if(document.activeElement!==campoTmdb)campoTmdb.value=preferences.tmdbApiKey||'';
+      campoTmdb.disabled=!admin;
+      if(!campoTmdb.dataset.bound){
+        campoTmdb.dataset.bound='1';
+        campoTmdb.addEventListener('change',event=>{
+          try{
+            const next=C().savePreferences({tmdbApiKey:event.target.value});
+            event.target.value=next.tmdbApiKey||'';
+            toast(next.tmdbApiKey?'Chave do TMDB guardada para todos os usuários.':'Busca no TMDB desligada.','success');
+          }catch(err){toast(err.message,'error');}
+        });
+      }
+    }
+    const testeTmdb=$('#tmdb-test');
+    if(testeTmdb&&!testeTmdb.dataset.bound){
+      testeTmdb.dataset.bound='1';
+      testeTmdb.addEventListener('click',medirCoberturaTmdb);
+    }
     if(enabled){enabled.checked=preferences.programArtworkEnabled;enabled.disabled=!admin;if(!enabled.dataset.bound){enabled.dataset.bound='1';enabled.addEventListener('change',event=>{try{const next=C().savePreferences({programArtworkEnabled:event.target.checked});if(!next.programArtworkEnabled)clearRenderedArtwork();renderAll();toast('Imagens de fundo '+(next.programArtworkEnabled?'ativadas':'desativadas')+' para todos os usuários.','success');}catch(err){event.target.checked=!event.target.checked;toast(err.message,'error');}});}}
     if(opacity){opacity.value=preferences.programArtworkOpacity;opacity.disabled=!admin;if($('#global-opacity-label'))$('#global-opacity-label').textContent=preferences.programArtworkOpacity+'%';document.documentElement.style.setProperty('--program-artwork-opacity',String(preferences.programArtworkOpacity/100));if(!opacity.dataset.bound){opacity.dataset.bound='1';opacity.addEventListener('input',event=>{const val=+event.target.value||14;if($('#global-opacity-label'))$('#global-opacity-label').textContent=val+'%';$$('.has-program-artwork').forEach(el=>el.style.setProperty('--program-artwork-opacity',String(val/100)));});opacity.addEventListener('change',event=>{try{C().savePreferences({programArtworkOpacity:+event.target.value||14});toast('Opacidade compartilhada atualizada.','success');}catch(err){toast(err.message,'error');}});}}
     const profiles=admin?Object.values(snapshot.users):[],list=$('#user-profile-list');list.innerHTML=!admin?'<p class="muted">A lista de usuarios fica visivel somente para administradores.</p>':profiles.length?profiles.map(profile=>'<div class="timeline-entry user-profile-entry"><strong>'+esc(profile.name||profile.email)+'</strong><span>'+esc(profile.email)+' · '+esc(profile.role)+'<br>'+esc((profile.channels||[]).map(id=>C().CHANNELS[id]?.name).filter(Boolean).join(', ')||'Nenhum canal')+'</span><button class="text-button edit-user-profile" data-user="'+esc(profile.email)+'" type="button">Editar acesso</button></div>').join(''):'<p class="muted">Nenhum perfil compartilhado cadastrado.</p>';$$('.edit-user-profile',list).forEach(button=>button.addEventListener('click',()=>openUserProfile(snapshot.users[button.dataset.user])));
