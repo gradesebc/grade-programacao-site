@@ -56,7 +56,14 @@
       const pedido = { signal: controle.signal, credentials: 'omit', referrerPolicy: 'no-referrer' };
       if (cabecalhos) pedido.headers = cabecalhos;
       const resposta = await fetch(url, pedido);
-      if (!resposta.ok) throw new Error('O acervo do TV Brasil Play respondeu ' + resposta.status + '.');
+      if (!resposta.ok) {
+        // Antes esta mensagem culpava o acervo do Play para qualquer fonte, o que
+        // atrapalhava justamente quando era outra que estava falhando.
+        let host = url;
+        try { host = new URL(url).host; } catch (_) { /* url estranha: fica a original */ }
+        const pistas = { 401: 'credencial recusada', 403: 'acesso negado', 404: 'não encontrado', 429: 'limite de consultas excedido' };
+        throw new Error(host + ' respondeu ' + resposta.status + (pistas[resposta.status] ? ' (' + pistas[resposta.status] + ')' : '') + '.');
+      }
       const dados = await resposta.json();
       return dados;
     } finally { clearTimeout(alarme); }

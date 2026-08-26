@@ -746,18 +746,33 @@
     if(!alvos.length){saida.textContent='Nenhum programa sem sinopse para testar.';return;}
     botao.disabled=true;
     let achados=0,comSinopse=0,falhas=0;
+    const motivos=new Map();
     for(let i=0;i<alvos.length;i++){
       saida.textContent='Medindo… '+(i+1)+' de '+alvos.length+'.';
       try{
         const achado=await window.EBCPlay.procurarNoTmdb(alvos[i].title,chave);
         if(achado){achados++;if(achado.sinopse)comSinopse++;}
-      }catch(_){falhas++;}
+      }catch(erro){
+        falhas++;
+        // Guardar o motivo distinto: "25 falhas" não diz nada, "25 vezes 401" diz tudo.
+        const motivo=String(erro&&erro.message||'falha desconhecida');
+        motivos.set(motivo,(motivos.get(motivo)||0)+1);
+      }
       await new Promise(r=>setTimeout(r,140)); // respeita o limite de chamadas do TMDB
     }
     botao.disabled=false;
     const pct=Math.round(comSinopse/alvos.length*100);
+    // Quando quase tudo falha, o número de cobertura é ruído: o que importa é o motivo.
+    if(falhas>=alvos.length/2){
+      const lista=[...motivos.entries()].sort((a,b)=>b[1]-a[1])
+        .map(([motivo,quantas])=>quantas+'x '+motivo).join(' · ');
+      saida.textContent='Não deu para medir: '+falhas+' de '+alvos.length+' consultas falharam. '+lista
+        +' — isto não é falta de cobertura, é a consulta não estar chegando ao TMDB.';
+      return;
+    }
     saida.textContent='Amostra de '+alvos.length+' programas sem sinopse: '+achados+' encontrados no TMDB, '
-      +comSinopse+' com sinopse em português'+(falhas?' · '+falhas+' falha(s) de consulta':'')
+      +comSinopse+' com sinopse em português'
+      +(falhas?' · '+falhas+' falha(s): '+[...motivos.keys()].join('; '):'')
       +'. Aproveitamento de '+pct+'%'+(pct<30?' — baixo para este acervo.':pct<60?' — parcial.':' — bom.');
   }
   // ===== Varredura de fichas incompletas =====
