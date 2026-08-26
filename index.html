@@ -5,19 +5,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="referrer" content="no-referrer">
-  <meta name="application-version" content="6.9.0">
+  <meta name="application-version" content="6.9.1">
   <meta name="application-release-date" content="26/08/2026">
   <meta name="author" content="Henrique Rude (HDut)">
   <meta name="dcterms.creator" content="Henrique Rude (HDut)">
   <meta name="generator" content="Sistema de Grade EBC — desenvolvido por Henrique Rude (HDut)">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://pt.wikipedia.org https://api.themoviedb.org https://play.ebc.com.br https://public.ebc.com.br https://login.microsoftonline.com https://graph.microsoft.com https://*.sharepoint.com https://*.sharepoint-df.com https://*.1drv.com https://*.msauth.net https://*.msftauth.net; frame-src https://login.microsoftonline.com https://*.msauth.net https://*.msftauth.net; worker-src 'self' blob:; form-action 'self' https://login.microsoftonline.com">
   <title>Sistema de Grade - EBC</title>
-  <link rel="stylesheet" href="assets/css/fontes-sistema.css?v=20260826-v690">
-  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260826-v690">
-  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260826-v690">
+  <link rel="stylesheet" href="assets/css/fontes-sistema.css?v=20260826-v691">
+  <link rel="stylesheet" href="assets/css/grade-v6.css?v=20260826-v691">
+  <link rel="stylesheet" href="assets/css/grade-v6-modern.css?v=20260826-v691">
   <!-- Proposta visual: inerte enquanto o <body> não tiver a classe visual-proposta.
        Liga e desliga em Administração > Aparência, sem afetar ninguém mais. -->
-  <link rel="stylesheet" href="assets/css/grade-v6-proposta.css?v=20260826-v690">
+  <link rel="stylesheet" href="assets/css/grade-v6-proposta.css?v=20260826-v691">
 </head>
 <body>
   <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -31,7 +31,7 @@
       <p class="muted">Entre com sua conta corporativa para acessar as grades compartilhadas.</p>
       <button id="login-button" class="button button-primary button-large" type="button"><span data-icon="microsoft"></span> Entrar com a Microsoft</button>
       <p id="login-status" class="helper" role="status">Autenticação segura pelo Microsoft Entra.</p>
-      <p class="app-version app-version-login" data-app-version>Versão 6.9.0 · 26/08/2026</p>
+      <p class="app-version app-version-login" data-app-version>Versão 6.9.1 · 26/08/2026</p>
     </section>
   </div>
   <div id="channel-overlay" class="overlay hidden" aria-labelledby="channel-title">
@@ -67,7 +67,7 @@
         <p id="sync-detail">Aguardando conexão com o OneDrive.</p>
         <button id="sync-now" class="text-button" type="button"><span data-icon="cloud"></span><span class="sidebar-action-label">Sincronizar agora</span></button>
       </div>
-      <div class="sidebar-version" data-version-short="v6.9.0" title="Versão instalada: 6.9.0 · 26/08/2026"><span data-app-version>Versão 6.9.0 · 26/08/2026</span></div>
+      <div class="sidebar-version" data-version-short="v6.9.1" title="Versão instalada: 6.9.1 · 26/08/2026"><span data-app-version>Versão 6.9.1 · 26/08/2026</span></div>
       <div class="sidebar-actions">
         <button id="switch-channel" class="button button-quiet" type="button"><span data-icon="switch"></span><span class="sidebar-action-label">Trocar canal</span></button>
         <button id="logout-button" class="button button-quiet" type="button"><span data-icon="logout"></span><span class="sidebar-action-label">Sair</span></button>
@@ -193,7 +193,7 @@
             <article class="panel admin-tmdb-panel">
           <div class="panel-heading"><div><h3>Fonte externa para filmes (TMDB)</h3><p class="muted">Quarta e última camada da busca, usada só quando o acervo da EBC e a Wikipédia não têm o título — que é onde estão os filmes licenciados. É uma base comunitária, então vale medir a cobertura no nosso catálogo antes de confiar.</p></div></div>
           <div class="form-grid" style="grid-template-columns:minmax(240px,1fr);gap:12px;margin-top:12px">
-            <label>Chave da API<input id="tmdb-key" type="password" autocomplete="off" maxlength="200" placeholder="cole aqui a chave da API"><span class="helper">Gratuita em <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer">themoviedb.org</a>. Fica guardada junto com as outras preferências, no OneDrive — nunca no código publicado. Deixe em branco para não usar esta camada.</span></label>
+            <label>Chave da API<input id="tmdb-key" type="password" autocomplete="off" maxlength="600" placeholder="cole aqui a chave da API"><span class="helper">Serve tanto a <strong>Chave da API</strong> quanto o <strong>Token de Leitura da API</strong> — o token é preferível, porque não deixa a credencial no histórico do navegador. Pegue em <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer">themoviedb.org</a>. Fica guardada no OneDrive junto com as outras preferências, nunca no código publicado, mas é visível para quem usa o sistema e abre as ferramentas do navegador. Deixe em branco para não usar esta camada.</span></label>
           </div>
           <div class="button-row">
             <button id="tmdb-test" class="button button-secondary" type="button"><span data-icon="search"></span> Medir cobertura no nosso catálogo</button>
@@ -205,6 +205,7 @@
           <div id="artwork-hunt-status" class="artwork-hunt-status" hidden>
             <div class="artwork-hunt-bar"><span id="artwork-hunt-fill"></span></div>
             <p id="artwork-hunt-text" class="helper"></p>
+            <div id="artwork-hunt-report" class="artwork-hunt-report" hidden></div>
           </div>
           <div class="button-row">
             <button id="artwork-hunt-start" class="button button-primary" type="button"><span data-icon="search"></span> Completar fichas que faltam</button>
@@ -247,7 +248,7 @@
           <div class="admin-grupo-corpo">
             <article class="panel release-panel">
           <div><p class="eyebrow">Identificação do sistema</p><h3>Versão instalada</h3><p class="muted">Informe este número ao relatar uma dúvida, correção ou diferença entre computadores.</p></div>
-          <strong class="release-badge" data-app-version>Versão 6.9.0 · 26/08/2026</strong>
+          <strong class="release-badge" data-app-version>Versão 6.9.1 · 26/08/2026</strong>
         </article>
           </div>
         </section>
@@ -276,12 +277,12 @@
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
   <div id="print-root" aria-hidden="true"></div>
   <script src="assets/vendor/xlsx.full.min.js?v=0.20.3"></script>
-  <script src="assets/js/microsoft-graph.bundle.js?v=20260826-v690"></script>
-  <script src="assets/js/grade-core-v6.js?v=20260826-v690"></script>
+  <script src="assets/js/microsoft-graph.bundle.js?v=20260826-v691"></script>
+  <script src="assets/js/grade-core-v6.js?v=20260826-v691"></script>
   <script src="assets/js/graph-store-v6.js?v=20260812-sec3"></script>
-  <script src="assets/js/tvbrasil-program-artworks.js?v=20260826-v690"></script>
-  <script src="assets/js/tvbrasil-episode-titles.js?v=20260826-v690"></script>
-  <script src="assets/js/ebc-play-source.js?v=20260826-v690"></script>
-  <script src="assets/js/grade-app-v6.js?v=20260826-v690"></script>
+  <script src="assets/js/tvbrasil-program-artworks.js?v=20260826-v691"></script>
+  <script src="assets/js/tvbrasil-episode-titles.js?v=20260826-v691"></script>
+  <script src="assets/js/ebc-play-source.js?v=20260826-v691"></script>
+  <script src="assets/js/grade-app-v6.js?v=20260826-v691"></script>
 </body>
 </html>

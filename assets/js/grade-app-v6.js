@@ -775,7 +775,12 @@
   const episodiosSemTitulo=p=>(p.seasons||[]).reduce((n,t)=>n+(t.episodes||[]).filter(e=>!String(e.title||'').trim()).length,0);
   const fichaIncompleta=p=>CAMPOS_DA_FICHA.some(c=>c.falta(p))||episodiosSemTitulo(p)>0;
   const CHAVE_VARREDURA='ebc_varredura_pendente';
-  let varredura={rodando:false,parar:false,feitos:0,total:0,achados:{},pendentes:[]};
+  let varredura={rodando:false,parar:false,feitos:0,total:0,achados:{},pendentes:[],pendencias:[]};
+  // Contar quantos foram preenchidos não explica os que ficaram de fora. Aqui fica
+  // registrado o motivo de cada um, para dar para agir em vez de só desconfiar.
+  function anotarPendencia(programa,motivo){
+    if(varredura.pendencias.length<120)varredura.pendencias.push({titulo:programa?.title||'(sem nome)',motivo});
+  }
 
   function guardarVarredura(){
     try{
@@ -819,8 +824,11 @@
   }
   async function completarFichaDe(programa){
     let sugestao=null;
+    const queriaSinopse=!String(programa.synopsis||'').trim();
     try{sugestao=await window.EBCPlay.sugerirPara(programa,{minimo:'alta',tmdb:chaveTmdb()});}
-    catch(_){varredura.achados.falha=(varredura.achados.falha||0)+1;return;}
+    catch(_){varredura.achados.falha=(varredura.achados.falha||0)+1;anotarPendencia(programa,'falha de rede na consulta');return;}
+    if(!sugestao){anotarPendencia(programa,'título não encontrado em nenhuma fonte');return;}
+    if(queriaSinopse&&!sugestao.campos?.synopsis)anotarPendencia(programa,'encontrado, mas sem sinopse em português nas fontes');
     const campos=(sugestao&&sugestao.campos)||{};
     // Segunda releitura, agora na hora de gravar: entre a consulta e o salvamento
     // dá tempo de alguém ter digitado o campo à mão.
@@ -844,6 +852,22 @@
     }
     if(Object.keys(mudou).length)C().saveProgram({...atual,...mudou},atual.scope);
   }
+  function pintarPendenciasDaVarredura(){
+    const caixa=$('#artwork-hunt-report');if(!caixa)return;
+    const lista=varredura.pendencias||[];
+    if(!lista.length){caixa.hidden=true;caixa.innerHTML='';return;}
+    // Agrupa por motivo: a pessoa quer saber o padrão, não ler 120 linhas iguais.
+    const porMotivo=new Map();
+    lista.forEach(item=>{
+      if(!porMotivo.has(item.motivo))porMotivo.set(item.motivo,[]);
+      porMotivo.get(item.motivo).push(item.titulo);
+    });
+    caixa.hidden=false;
+    caixa.innerHTML='<p class="helper"><strong>O que ficou de fora e por quê</strong></p>'
+      +[...porMotivo.entries()].map(([motivo,titulos])=>
+        '<details class="varredura-motivo"><summary>'+esc(motivo)+' <span>'+titulos.length+'</span></summary>'
+        +'<p>'+titulos.slice(0,40).map(esc).join(' · ')+(titulos.length>40?' … e mais '+(titulos.length-40):'')+'</p></details>').join('');
+  }
   async function varrerFichasIncompletas(){
     if(varredura.rodando)return;
     if(!window.EBCPlay){toast('O módulo de consulta ao acervo não foi carregado.','error');return;}
@@ -861,7 +885,7 @@
       total=fila.length;
     }
     if(!fila.length){localStorage.removeItem(CHAVE_VARREDURA);toast('Todas as fichas já estão completas.','success');return;}
-    varredura={rodando:true,parar:false,feitos,total,achados:{},pendentes:fila.slice()};
+    varredura={rodando:true,parar:false,feitos,total,achados:{},pendentes:fila.slice(),pendencias:[]};
     window.addEventListener('beforeunload',avisarSaidaDaVarredura);
     guardarVarredura();pintarVarredura();
     for(const id of fila){
@@ -882,6 +906,7 @@
       +(resumo?'Preenchido: '+resumo+'.':'Nada novo encontrado.')
       +(falhas?' '+falhas+' falha(s) de consulta.':'')
       +(interrompida?' Clique de novo para continuar de onde parou.':''));
+    pintarPendenciasDaVarredura();
     renderCatalog();renderAdmin();
     toast(resumo?'Fichas completadas: '+resumo+'. Confira antes de publicar.':'Nada novo encontrado no acervo.',resumo?'success':'');
   }

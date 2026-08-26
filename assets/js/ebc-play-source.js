@@ -49,11 +49,13 @@
     return null;
   }
 
-  async function pegarJson(url) {
+  async function pegarJson(url, cabecalhos) {
     const controle = new AbortController();
     const alarme = setTimeout(() => controle.abort(), TEMPO_LIMITE);
     try {
-      const resposta = await fetch(url, { signal: controle.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+      const pedido = { signal: controle.signal, credentials: 'omit', referrerPolicy: 'no-referrer' };
+      if (cabecalhos) pedido.headers = cabecalhos;
+      const resposta = await fetch(url, pedido);
       if (!resposta.ok) throw new Error('O acervo do TV Brasil Play respondeu ' + resposta.status + '.');
       const dados = await resposta.json();
       return dados;
@@ -221,10 +223,17 @@
   async function procurarNoTmdb(titulo, chave) {
     const limpo = String(titulo || '').trim();
     if (limpo.length < 3 || !String(chave || '').trim()) return null;
+    // O TMDB entrega duas credenciais: a "Chave da API" (só hexadecimal, viaja na
+    // URL) e o "Token de Leitura da API" (um JWT, com pontos, que vai no cabeçalho).
+    // Aceitamos as duas — e o token é preferível, porque credencial na URL acaba no
+    // histórico do navegador e no log de proxy. O custo é uma requisição de permissão
+    // a mais que o navegador faz antes da consulta.
+    const credencial = String(chave).trim();
+    const ehToken = credencial.includes('.');
     const url = TMDB + '/search/multi?language=pt-BR&include_adult=false'
-      + '&api_key=' + encodeURIComponent(String(chave).trim())
+      + (ehToken ? '' : '&api_key=' + encodeURIComponent(credencial))
       + '&query=' + encodeURIComponent(limpo);
-    const dados = await pegarJson(url);
+    const dados = await pegarJson(url, ehToken ? { Authorization: 'Bearer ' + credencial } : null);
     const achados = Array.isArray(dados && dados.results) ? dados.results : [];
     for (const item of achados) {
       if (!item || item.media_type === 'person') continue;

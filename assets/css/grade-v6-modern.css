@@ -702,3 +702,11 @@ body.theme-dark .admin-grupo-perigo .admin-grupo-titulo p{color:#e8a89e}
 body.theme-dark .ficha-situacao.t-ok{background:color-mix(in srgb,#16825d 14%,var(--surface));color:#7fd7b4}
 body.theme-dark .ficha-situacao.t-vencendo,body.theme-dark .ficha-situacao.t-neutro{background:color-mix(in srgb,#a66300 16%,var(--surface));color:#f0c98a}
 body.theme-dark .ficha-situacao.t-vencida{background:color-mix(in srgb,#b42318 16%,var(--surface));color:#f3a89f}
+
+/* Relatorio da varredura: por que cada programa ficou de fora. */
+.artwork-hunt-report{margin-top:10px;display:grid;gap:6px}
+.artwork-hunt-report[hidden]{display:none}
+.varredura-motivo{border:1px solid var(--line);border-radius:9px;background:var(--surface,#fff);padding:8px 11px;font-size:.78rem}
+.varredura-motivo summary{cursor:pointer;font-weight:700;color:var(--ink);display:flex;gap:8px;align-items:center}
+.varredura-motivo summary span{margin-left:auto;min-width:22px;padding:1px 7px;border-radius:999px;background:var(--sky);color:var(--blue2);font-size:.7rem;text-align:center}
+.varredura-motivo p{margin:8px 0 0;font-size:.72rem;color:var(--muted);line-height:1.5}

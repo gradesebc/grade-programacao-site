@@ -472,7 +472,7 @@
     // formato de chave (hex ou token) para nao virar campo de texto livre.
     if(Object.prototype.hasOwnProperty.call(changes,'tmdbApiKey')){
       const bruta=String(changes.tmdbApiKey||'').trim();
-      next.tmdbApiKey=/^[A-Za-z0-9._-]{0,200}$/.test(bruta)?bruta:'';
+      next.tmdbApiKey=/^[A-Za-z0-9._-]{0,600}$/.test(bruta)?bruta:'';
     }
     state.preferences=next;audit('Preferências de exibição atualizadas','Imagens '+(next.programArtworkEnabled?'ativadas':'desativadas')+' · opacidade '+next.programArtworkOpacity+'%','global');return clone(next);
   }
