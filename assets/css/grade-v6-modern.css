@@ -410,3 +410,94 @@ body.sidebar-collapsed .main-nav .nav-section-title{height:1px;margin:12px 10px;
   .import-spinner{animation-duration:2.4s}
   .import-progress-bar span{transition:none}
 }
+
+/* ===== Alertas e vigências =====
+   Antes cada programa virava uma caixa dobrável para conter uma ou duas linhas, e o nome
+   aparecia duas vezes. Muito espaço de tela para pouca informação. Agora o agrupamento é
+   por TIPO de problema, e cada alerta é uma linha em colunas alinhadas. */
+
+/* Números do topo: leitura rápida e atalho de filtro. */
+.alerta-resumo{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.alerta-numero{display:flex;flex-direction:column;gap:2px;min-width:104px;padding:10px 14px;
+  border:1px solid var(--line);border-radius:12px;background:var(--surface,#fff);text-align:left}
+.alerta-numero span{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.alerta-numero strong{font-size:1.5rem;line-height:1.1}
+.alerta-numero:hover{border-color:var(--blue)}
+.alerta-numero.ativo{border-color:var(--blue);background:var(--sky)}
+.alerta-numero.ativo span{color:var(--blue2)}
+.alerta-numero.vazio{opacity:.5}
+
+/* Uma seção por tipo de problema, separada por fio. */
+.alerta-secao{border:1px solid var(--line);border-radius:14px;background:var(--surface,#fff);
+  overflow:hidden;margin-bottom:14px}
+.alerta-secao.urgente{border-color:#e7b4ae}
+.alerta-secao-titulo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 16px;border-bottom:1px solid var(--line);background:var(--surface-2,#f8fafc)}
+.alerta-secao-titulo h3{margin:0;font-size:.95rem}
+.alerta-secao-titulo p{margin:0;flex:1 1 220px;min-width:0;font-size:.75rem;color:var(--muted)}
+.alerta-contagem{min-width:24px;padding:1px 8px;border-radius:999px;background:var(--navy);color:#fff;
+  font-size:.72rem;font-weight:800;text-align:center}
+.alerta-secao.urgente .alerta-contagem{background:var(--danger)}
+
+/* A linha do alerta: gravidade, programa, motivo, data.
+   Em tela larga vira duas colunas: com 50+ vigências a vencer, uma coluna só faz rolar
+   muito e deixa um vazio no meio de cada linha. O separador é desenhado por dentro
+   (não com border-top) porque em duas colunas a "primeira linha" existe duas vezes. */
+.alerta-linhas{display:grid;grid-template-columns:1fr}
+.alerta-linha{display:grid;grid-template-columns:10px minmax(120px,1fr) minmax(0,1.6fr) auto;
+  align-items:center;gap:12px;width:100%;padding:9px 16px;border:0;background:transparent;
+  text-align:left;font:inherit;color:inherit;position:relative}
+.alerta-linha::before{content:"";position:absolute;left:16px;right:16px;top:0;height:1px;background:var(--line)}
+.alerta-linhas > .alerta-linha:first-child::before{display:none}
+.alerta-linha:hover{background:var(--sky)}
+@media(min-width:1500px){
+  .alerta-linhas{grid-template-columns:1fr 1fr}
+  /* Com duas colunas, um fio vertical separa uma da outra. */
+  .alerta-linhas > .alerta-linha:nth-child(even){box-shadow:inset 1px 0 0 var(--line)}
+  .alerta-linhas > .alerta-linha:nth-child(2)::before{display:none}
+}
+@media(min-width:2100px){
+  .alerta-linhas{grid-template-columns:1fr 1fr 1fr}
+  .alerta-linhas > .alerta-linha:nth-child(3n+2),
+  .alerta-linhas > .alerta-linha:nth-child(3n)  {box-shadow:inset 1px 0 0 var(--line)}
+  .alerta-linhas > .alerta-linha:nth-child(2)::before,
+  .alerta-linhas > .alerta-linha:nth-child(3)::before{display:none}
+}
+.alerta-gravidade{width:8px;height:8px;border-radius:50%;background:var(--warning)}
+.alerta-linha.e-critico .alerta-gravidade{background:var(--danger)}
+.alerta-programa{font-weight:700;font-size:.84rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.alerta-motivo{font-size:.8rem;color:var(--muted);min-width:0}
+.alerta-motivo em{display:block;font-style:normal;font-size:.72rem;opacity:.85}
+.alerta-quando{font-size:.75rem;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* Vigências antigas ficam recolhidas: são registro, não pendência. */
+.alerta-arquivo summary{display:flex;align-items:center;gap:10px;padding:12px 16px;cursor:pointer;font-size:.9rem}
+.alerta-arquivo summary::-webkit-details-marker{display:none}
+.alerta-arquivo[open] summary{border-bottom:1px solid var(--line)}
+
+@media(max-width:760px){
+  .alerta-linha{grid-template-columns:10px minmax(0,1fr);row-gap:4px}
+  .alerta-motivo{grid-column:2}
+  .alerta-quando{grid-column:2;font-size:.72rem}
+}
+body.theme-dark .alerta-numero,
+body.theme-dark .alerta-secao{background:var(--surface);border-color:var(--line)}
+body.theme-dark .alerta-secao-titulo{background:var(--surface-2)}
+
+/* ===== Alertas em tela baixa (notebook) =====
+   Num 1366x768 sobram cerca de 470px para a lista depois da barra superior, do título,
+   das pastilhas e dos filtros. Cada pixel de respiro custa um alerta a menos na tela,
+   então aqui a página aperta o cinto sem mudar a estrutura. */
+@media(max-height:820px){
+  .alerta-resumo{margin-bottom:12px;gap:6px}
+  .alerta-numero{padding:7px 12px;min-width:90px}
+  .alerta-numero strong{font-size:1.25rem}
+  .alerta-secao{margin-bottom:10px}
+  .alerta-secao-titulo{padding:9px 14px}
+  .alerta-secao-titulo h3{font-size:.88rem}
+  .alerta-linha{padding:7px 14px}
+}
+@media(max-height:820px){
+  .alerta-linha::before{left:14px;right:14px}
+  .alerta-arquivo summary{padding:9px 14px}
+}

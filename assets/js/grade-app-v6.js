@@ -889,13 +889,83 @@
     const file=event.target.files[0];event.target.value='';if(!file)return;
     try{if(file.size>15*1024*1024)throw new Error('O arquivo JSON excede o limite de 15 MB.');const data=JSON.parse(await file.text()),info=C().inspectBackup(data),expected=info.channelName.toUpperCase();openModal({title:'Restaurar copia do canal?',kicker:'Restauracao protegida',body:'<p>Apenas <strong>'+esc(info.channelName)+'</strong> sera substituido.</p><div class="metric-grid"><div class="metric"><span>Programas</span><strong>'+info.counts.catalog+'</strong></div><div class="metric"><span>Regras</span><strong>'+info.counts.rules+'</strong></div><div class="metric"><span>Exibicoes</span><strong>'+info.counts.occurrences+'</strong></div><div class="metric"><span>Excecoes</span><strong>'+info.counts.exceptions+'</strong></div></div><p class="muted">Copia de '+esc(info.exportedAt||'data desconhecida')+' por '+esc(info.exportedBy||'usuario desconhecido')+'. O estado atual sera preservado no OneDrive antes da troca.</p><label class="field">Digite <strong>'+esc(expected)+'</strong><input id="restore-json-confirm" autocomplete="off"></label>',footer:'<button class="button button-secondary" data-modal-cancel type="button">Cancelar</button><button id="restore-json-go" class="button button-danger" type="button">Substituir somente este canal</button>'});$('[data-modal-cancel]').addEventListener('click',closeModal);$('#restore-json-go').addEventListener('click',async event=>{if($('#restore-json-confirm').value.trim().toUpperCase()!==expected){toast('A confirmacao digitada nao corresponde.','error');return;}const button=event.currentTarget;button.disabled=true;try{await G().saveBackup(C().makeChannelBackup('Antes de restaurar copia externa'));C().restoreBackup(data);await G().saveNow(true);closeModal();renderAll();toast('Canal restaurado. A versao anterior foi preservada.','success');}catch(err){button.disabled=false;toast(err.message,'error');}});}catch(err){toast(err.message,'error');}
   }
+  // Ordem de urgência: o que já venceu vem primeiro, o que é cadastro incompleto por último.
+  const SECOES_DE_ALERTA = [
+    { tipo: 'expired', titulo: 'Vigência vencida', nota: 'Não devem ir ao ar sem renovar o contrato.' },
+    { tipo: 'conflict', titulo: 'Conflitos na grade', nota: 'Dois programas ocupando o mesmo horário.' },
+    { tipo: 'limit', titulo: 'Limite de exibições', nota: 'Contratos chegando ao número máximo de exibições.' },
+    { tipo: 'expiring', titulo: 'Vigência a vencer', nota: 'Prazo terminando nos próximos 60 dias.' },
+    { tipo: 'incomplete', titulo: 'Cadastro incompleto', nota: 'Faltam dados básicos do programa.' }
+  ];
+  function linhaDeAlerta(a){
+    // Uma linha por alerta, em colunas: gravidade, programa, o que houve, quando.
+    // Antes cada programa virava uma caixa dobrável só para conter uma ou duas linhas,
+    // e o nome aparecia duas vezes — muito espaço de tela para pouca informação.
+    const quando = a.date ? C().formatDate(a.date, { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+    return '<button class="alerta-linha alert-go' + (a.severity === 'critical' ? ' e-critico' : '') + '"'
+      + ' data-alert="' + esc(a.id) + '" type="button">'
+      + '<span class="alerta-gravidade" aria-hidden="true"></span>'
+      + '<span class="alerta-programa">' + esc(a.title || 'Programa sem nome') + '</span>'
+      + '<span class="alerta-motivo">' + esc(a.message) + (a.detail ? '<em>' + esc(a.detail) + '</em>' : '') + '</span>'
+      + '<span class="alerta-quando">' + esc(quando) + '</span>'
+      + '</button>';
+  }
   function renderAlerts(){
-    if(!C().session.channel)return;const all=C().getAlerts(),active=all.filter(a=>!a.historical),type=$('#alert-type').value||'all',severity=$('#alert-severity').value||'all',query=C().normalize($('#alert-search').value),matches=a=>(type==='all'||a.type===type)&&(severity==='all'||a.severity===severity)&&(!query||C().normalize([a.title,a.message].join(' ')).includes(query)),filtered=active.filter(matches),archived=all.filter(a=>a.historical&&matches(a));
-    $('#alert-badge').textContent=active.length;$('#alert-metrics').innerHTML='<div class="metric"><span>Críticos</span><strong>'+active.filter(a=>a.severity==='critical').length+'</strong></div><div class="metric"><span>Vencendo</span><strong>'+active.filter(a=>a.type==='expiring').length+'</strong></div><div class="metric"><span>Limites</span><strong>'+active.filter(a=>a.type==='limit').length+'</strong></div><div class="metric"><span>Conflitos</span><strong>'+active.filter(a=>a.type==='conflict').length+'</strong></div>';
-    const groups=new Map();filtered.forEach(a=>{if(!groups.has(a.title))groups.set(a.title,[]);groups.get(a.title).push(a);});const box=$('#alert-list');box.innerHTML='';if(!filtered.length&&!archived.length){box.innerHTML='<div class="empty-state"><p><strong>Tudo em ordem.</strong><br>Nenhum alerta corresponde aos filtros.</p></div>';return;}
-    groups.forEach((items,title)=>{const detail=document.createElement('details');detail.className='alert-group';detail.open=items.some(i=>i.severity==='critical');detail.innerHTML='<summary><span>'+esc(title)+'</span><span class="scope-pill">'+items.length+' alerta(s)</span></summary><div class="alert-items">'+items.map(a=>alertItem(a)).join('')+'</div>';box.append(detail);bindAlertLinks(detail,items);});
-    if(archived.length){const history=document.createElement('details');history.className='alert-group alert-history';history.innerHTML='<summary><span>Histórico de vigências antigas</span><span class="scope-pill">'+archived.length+' registro(s)</span></summary><div class="alert-items">'+archived.map(a=>alertItem(a)).join('')+'</div>';box.append(history);bindAlertLinks(history,archived);}}
-  function alertItem(a){return '<button class="alert-item alert-go" data-alert="'+esc(a.id)+'" type="button" aria-label="Abrir alerta: '+esc(a.title)+'"><span class="alert-content"><span class="severity '+(a.severity==='critical'?'critical':'')+'"></span><span class="alert-copy"><strong>'+esc(a.title)+'</strong><span>'+esc(a.message)+(a.detail?' · '+esc(a.detail):'')+'</span></span></span><span class="alert-chevron" aria-hidden="true">›</span></button>';}
+    if(!C().session.channel)return;
+    const all=C().getAlerts(),active=all.filter(a=>!a.historical),
+      type=$('#alert-type').value||'all',severity=$('#alert-severity').value||'all',
+      query=C().normalize($('#alert-search').value),
+      matches=a=>(type==='all'||a.type===type)&&(severity==='all'||a.severity===severity)
+        &&(!query||C().normalize([a.title,a.message].join(' ')).includes(query)),
+      filtered=active.filter(matches),archived=all.filter(a=>a.historical&&matches(a));
+
+    $('#alert-badge').textContent=active.length;
+
+    // Os números do topo viram atalhos: clicar filtra por aquele tipo.
+    const resumo=[
+      {rotulo:'Total',valor:active.length,filtro:'all'},
+      {rotulo:'Vencidas',valor:active.filter(a=>a.type==='expired').length,filtro:'expired'},
+      {rotulo:'A vencer',valor:active.filter(a=>a.type==='expiring').length,filtro:'expiring'},
+      {rotulo:'Limites',valor:active.filter(a=>a.type==='limit').length,filtro:'limit'},
+      {rotulo:'Conflitos',valor:active.filter(a=>a.type==='conflict').length,filtro:'conflict'}
+    ];
+    $('#alert-metrics').className='alerta-resumo';
+    $('#alert-metrics').innerHTML=resumo.map(item=>
+      '<button type="button" class="alerta-numero'+(type===item.filtro?' ativo':'')+(item.valor?'':' vazio')+'"'
+      +' data-filtro="'+item.filtro+'"><span>'+item.rotulo+'</span><strong>'+item.valor+'</strong></button>').join('');
+    $$('.alerta-numero').forEach(botao=>botao.addEventListener('click',()=>{
+      $('#alert-type').value=botao.dataset.filtro;renderAlerts();
+    }));
+
+    const box=$('#alert-list');box.innerHTML='';
+    if(!filtered.length&&!archived.length){
+      box.innerHTML='<div class="empty-state"><p><strong>Tudo em ordem.</strong><br>'
+        +(active.length?'Nenhum alerta corresponde aos filtros.':'Nenhuma pendência neste canal.')+'</p></div>';
+      return;
+    }
+
+    SECOES_DE_ALERTA.forEach(secao=>{
+      const itens=filtered.filter(a=>a.type===secao.tipo);
+      if(!itens.length)return;
+      const bloco=document.createElement('section');
+      bloco.className='alerta-secao'+(secao.tipo==='expired'||secao.tipo==='conflict'?' urgente':'');
+      bloco.innerHTML='<header class="alerta-secao-titulo"><h3>'+esc(secao.titulo)+'</h3>'
+        +'<span class="alerta-contagem">'+itens.length+'</span>'
+        +'<p>'+esc(secao.nota)+'</p></header>'
+        +'<div class="alerta-linhas">'+itens.map(linhaDeAlerta).join('')+'</div>';
+      box.append(bloco);bindAlertLinks(bloco,itens);
+    });
+
+    if(archived.length){
+      const historico=document.createElement('details');
+      historico.className='alerta-secao alerta-arquivo';
+      historico.innerHTML='<summary><strong>Vigências antigas</strong>'
+        +'<span class="alerta-contagem">'+archived.length+'</span></summary>'
+        +'<div class="alerta-linhas">'+archived.map(linhaDeAlerta).join('')+'</div>';
+      box.append(historico);bindAlertLinks(historico,archived);
+    }
+  }
+
   function bindAlertLinks(root,items){$$('.alert-go',root).forEach(button=>button.addEventListener('click',()=>goToAlert(items.find(a=>a.id===button.dataset.alert))));}
   function goToAlert(alert){
     if(alert.date){
